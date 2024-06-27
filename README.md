@@ -1,0 +1,1 @@
+This project is a native unmanaged reliable udp, based on kcp and nanosockets. 

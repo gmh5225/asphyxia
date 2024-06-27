@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="Kcp-CSharp">
+        <HintPath>..\..\Kcp-CSharp\Kcp-CSharp\bin\Release\net8.0\Kcp-CSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="Nanosockets-CSharp">
+        <HintPath>..\..\Nanosockets-CSharp\Nanosockets-CSharp\bin\Release\net8.0\Nanosockets-CSharp.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+</Project>
