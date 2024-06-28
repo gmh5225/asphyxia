@@ -36,9 +36,19 @@ namespace asphyxia
         public const int WINDOW_SIZE = 1024;
 
         /// <summary>
-        ///     TickInterval
+        ///     Tick interval
         /// </summary>
         public const int TICK_INTERVAL = 1;
+
+        /// <summary>
+        ///     Tick interval min
+        /// </summary>
+        public const int TICK_INTERVAL_MIN = 0;
+
+        /// <summary>
+        ///     Tick interval max
+        /// </summary>
+        public const int TICK_INTERVAL_MAX = 1;
 
         /// <summary>
         ///     PingInterval

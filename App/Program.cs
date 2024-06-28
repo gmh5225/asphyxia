@@ -84,8 +84,6 @@ namespace asphyxia
                 if (connected2)
                 {
                     j++;
-                    if (j == 10)
-                        peer2?.DisconnectNow();
                     peer2?.Send(Encoding.UTF8.GetBytes($"client: {j}"));
                 }
 
