@@ -269,9 +269,9 @@ namespace asphyxia
         /// </summary>
         private void Timeout()
         {
-            if (_state == Connected)
+            if (_state == Connected || _state == Disconnecting)
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
-            else if (_state == Connecting || _state == Disconnecting)
+            else if (_state == Connecting)
                 _host.Insert(new NetworkEvent(NetworkEventType.Timeout, this));
             _state = Disconnected;
             _kcp.Dispose();

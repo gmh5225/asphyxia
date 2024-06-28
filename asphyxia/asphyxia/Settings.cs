@@ -41,16 +41,6 @@ namespace asphyxia
         public const int TICK_INTERVAL = 1;
 
         /// <summary>
-        ///     Tick interval min
-        /// </summary>
-        public const int TICK_INTERVAL_MIN = 0;
-
-        /// <summary>
-        ///     Tick interval max
-        /// </summary>
-        public const int TICK_INTERVAL_MAX = 1;
-
-        /// <summary>
         ///     PingInterval
         /// </summary>
         public const int PING_INTERVAL = 500;

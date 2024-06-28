@@ -83,11 +83,6 @@ namespace asphyxia
         private NanoIPEndPoint _remoteEndPoint;
 
         /// <summary>
-        ///     Interval
-        /// </summary>
-        private int _interval;
-
-        /// <summary>
         ///     Is created
         /// </summary>
         public bool IsSet => _socket.IsSet;
@@ -215,11 +210,8 @@ namespace asphyxia
         /// </summary>
         public void Service()
         {
-            if (_socket.Poll(_interval))
+            if (_socket.Poll(0))
             {
-                _interval -= TICK_INTERVAL;
-                if (_interval < TICK_INTERVAL_MIN)
-                    _interval = TICK_INTERVAL_MIN;
                 while (_socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
                 {
                     if (count < OVERHEAD)
@@ -254,12 +246,6 @@ namespace asphyxia
 
                     peer.Input(_receiveBuffer, count);
                 }
-            }
-            else
-            {
-                _interval += TICK_INTERVAL;
-                if (_interval > TICK_INTERVAL_MAX)
-                    _interval = TICK_INTERVAL_MAX;
             }
 
             var node = _sentinel;
