@@ -63,11 +63,10 @@ namespace asphyxia
                 switch (networkEvent.EventType)
                 {
                     case NetworkEventType.Connect:
-                        Console.WriteLine($"Connected: {networkEvent.Peer.Id}");
+                        Console.WriteLine($"Connected: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}]");
                         _peers[networkEvent.Peer.IPEndPoint] = networkEvent.Peer;
                         continue;
                     case NetworkEventType.Data:
-                        Console.WriteLine($"Data: {networkEvent.Peer.Id}");
                         var packet = networkEvent.Packet;
                         if (packet.Length != sizeof(NanoIPEndPoint))
                         {
@@ -82,6 +81,7 @@ namespace asphyxia
                             continue;
                         }
 
+                        Console.WriteLine($"Data: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}] to [{peer.Id}] [{peer.IPEndPoint}]");
                         Unsafe.Write((void*)packet.Data, peer.IPEndPoint);
                         var outgoing = new NetworkOutgoing(networkEvent.Peer, packet);
                         _outgoings.Enqueue(outgoing);
