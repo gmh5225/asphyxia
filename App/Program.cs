@@ -11,6 +11,22 @@ namespace asphyxia
     {
         private static void Main()
         {
+            var service = new TravelerService();
+            service.Create(4096, 7778);
+            Console.CancelKeyPress += (sender, args) =>
+            {
+                service.Dispose();
+                Thread.Sleep(1000);
+            };
+            while (true)
+            {
+                service.Service();
+                Thread.Sleep(1);
+            }
+        }
+
+        private static void TestConnection()
+        {
             var a = new Host();
             var b = new Host();
             a.Create(100, 7777);

@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
@@ -10,7 +9,12 @@
 
     <ItemGroup>
       <ProjectReference Include="..\asphyxia\asphyxia.csproj" />
-      <ProjectReference Include="..\Traveler\Traveler.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="Nanosockets-CSharp">
+        <HintPath>..\..\Nanosockets-CSharp\Nanosockets-CSharp\bin\Release\net8.0\Nanosockets-CSharp.dll</HintPath>
+      </Reference>
     </ItemGroup>
 
 </Project>

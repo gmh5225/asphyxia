@@ -29,11 +29,19 @@ namespace asphyxia
         /// </summary>
         /// <param name="peer">Peer</param>
         /// <param name="data">DataPacket</param>
-        public NetworkOutgoing(Peer peer, Span<byte> data)
+        public NetworkOutgoing(Peer peer, DataPacket data)
         {
             Peer = peer;
-            Packet = DataPacket.Create(data);
+            Packet = data;
         }
+
+        /// <summary>
+        ///     Create
+        /// </summary>
+        /// <param name="peer">Peer</param>
+        /// <param name="data">DataPacket</param>
+        /// <returns>NetworkOutgoing</returns>
+        public static NetworkOutgoing Create(Peer peer, Span<byte> data) => new(peer, DataPacket.Create(data));
 
         /// <summary>
         ///     Send
