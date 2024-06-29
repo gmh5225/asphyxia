@@ -10,9 +10,9 @@ using System;
 namespace asphyxia
 {
     /// <summary>
-    ///     Network tuple
+    ///     Network outgoing
     /// </summary>
-    public struct NetworkTuple : IDisposable
+    public struct NetworkOutgoing : IDisposable
     {
         /// <summary>
         ///     Peer
@@ -29,7 +29,7 @@ namespace asphyxia
         /// </summary>
         /// <param name="peer">Peer</param>
         /// <param name="data">DataPacket</param>
-        public NetworkTuple(Peer peer, Span<byte> data)
+        public NetworkOutgoing(Peer peer, Span<byte> data)
         {
             Peer = peer;
             Packet = DataPacket.Create(data);

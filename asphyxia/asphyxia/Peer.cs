@@ -91,7 +91,7 @@ namespace asphyxia
             _sendBuffer = sendBuffer;
             _state = state;
             _kcp = new Kcp(CONVERSATION, Output);
-            _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, CONGESTION_WINDOW);
+            _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE);
             var current = Current;
             _lastSendTimestamp = current;

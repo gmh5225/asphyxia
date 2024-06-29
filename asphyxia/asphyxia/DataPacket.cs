@@ -352,6 +352,27 @@ namespace asphyxia
         public Span<byte> AsSpan(int offset, int length) => new((byte*)Data + offset, length);
 
         /// <summary>
+        ///     AsReadOnlySpan
+        /// </summary>
+        /// <returns>ReadOnlySpan</returns>
+        public ReadOnlySpan<byte> AsReadOnlySpan() => new((byte*)Data, Length);
+
+        /// <summary>
+        ///     AsReadOnlySpan
+        /// </summary>
+        /// <param name="offset">Offset</param>
+        /// <returns>ReadOnlySpan</returns>
+        public ReadOnlySpan<byte> AsReadOnlySpan(int offset) => new((byte*)Data + offset, Length);
+
+        /// <summary>
+        ///     AsReadOnlySpan
+        /// </summary>
+        /// <param name="offset">Offset</param>
+        /// <param name="length">Length</param>
+        /// <returns>ReadOnlySpan</returns>
+        public ReadOnlySpan<byte> AsReadOnlySpan(int offset, int length) => new((byte*)Data + offset, length);
+
+        /// <summary>
         ///     Dispose
         /// </summary>
         public void Dispose()

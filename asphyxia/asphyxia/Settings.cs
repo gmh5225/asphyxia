@@ -58,11 +58,11 @@ namespace asphyxia
         /// <summary>
         ///     FastResend
         /// </summary>
-        public const int FAST_RESEND = 2;
+        public const int FAST_RESEND = 0;
 
         /// <summary>
-        ///     CongestionWindow
+        ///     NoCongestionWindow
         /// </summary>
-        public const int CONGESTION_WINDOW = 0;
+        public const int NO_CONGESTION_WINDOW = 0;
     }
 }

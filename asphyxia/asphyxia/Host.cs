@@ -6,6 +6,7 @@
 #if UNITY_2021_3_OR_NEWER || GODOT
 using System;
 using System.Collections.Generic;
+using System.Threading;
 #endif
 using System.Net.Sockets;
 using NanoSockets;
@@ -14,6 +15,8 @@ using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
 
 #pragma warning disable CS8632
+
+// ReSharper disable PossibleNullReferenceException
 
 namespace asphyxia
 {
@@ -73,14 +76,24 @@ namespace asphyxia
         private readonly Queue<NetworkEvent> _networkEvents = new(MAX_EVENTS);
 
         /// <summary>
-        ///     State lock
-        /// </summary>
-        private readonly object _lock = new();
-
-        /// <summary>
         ///     Remote endPoint
         /// </summary>
         private NanoIPEndPoint _remoteEndPoint;
+
+        /// <summary>
+        ///     Peer
+        /// </summary>
+        private Peer? _peer;
+
+        /// <summary>
+        ///     Poll interval
+        /// </summary>
+        private int _pollInterval;
+
+        /// <summary>
+        ///     State lock
+        /// </summary>
+        private readonly object _lock = new();
 
         /// <summary>
         ///     Is created
@@ -113,6 +126,8 @@ namespace asphyxia
                     networkEvent.Packet.Dispose();
                 }
 
+                _peer = null;
+                _pollInterval = 0;
                 GC.SuppressFinalize(this);
             }
         }
@@ -210,48 +225,76 @@ namespace asphyxia
         /// </summary>
         public void Service()
         {
-            if (_socket.Poll(0))
+            if (_socket.Poll(_pollInterval))
             {
-                while (_socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
+                _pollInterval = 0;
+                var received = 0;
+                var remoteEndPoint = _remoteEndPoint;
+                while (received < MAX_EVENTS && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
                 {
-                    if (count < OVERHEAD)
+                    try
                     {
-                        if (count == 4 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
+                        if (count < OVERHEAD)
                         {
-                            if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out var disconnectedPeer))
-                                disconnectedPeer.DisconnectInternal();
-                        }
+                            if (count == 4 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
+                            {
+                                if (_peer == null || _remoteEndPoint != remoteEndPoint)
+                                {
+                                    if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out _peer))
+                                        _peer.DisconnectInternal();
+                                }
+                                else
+                                {
+                                    _peer.DisconnectInternal();
+                                }
+                            }
 
-                        continue;
-                    }
-
-                    var hashCode = _remoteEndPoint.GetHashCode();
-                    if (!_peers.TryGetValue(hashCode, out var peer))
-                    {
-                        if (count != 25 || _receiveBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                             continue;
-                        peer = new Peer(this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
-                        _peers[hashCode] = peer;
-                        if (_sentinel == null)
-                        {
-                            _sentinel = peer;
                         }
-                        else
-                        {
-                            _sentinel.Previous = peer;
-                            peer.Next = _sentinel;
-                            _sentinel = peer;
-                        }
-                    }
 
-                    peer.Input(_receiveBuffer, count);
+                        if (_peer == null || _remoteEndPoint != remoteEndPoint)
+                        {
+                            var hashCode = _remoteEndPoint.GetHashCode();
+                            if (!_peers.TryGetValue(hashCode, out _peer))
+                            {
+                                if (count != 25 || _receiveBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
+                                    continue;
+                                _peer = new Peer(this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
+                                _peers[hashCode] = _peer;
+                                if (_sentinel == null)
+                                {
+                                    _sentinel = _peer;
+                                }
+                                else
+                                {
+                                    _sentinel.Previous = _peer;
+                                    _peer.Next = _sentinel;
+                                    _sentinel = _peer;
+                                }
+                            }
+                        }
+
+                        _peer.Input(_receiveBuffer, count);
+                    }
+                    finally
+                    {
+                        received++;
+                        remoteEndPoint = _remoteEndPoint;
+                        Thread.SpinWait(1);
+                    }
                 }
+            }
+            else
+            {
+                _pollInterval = 1;
+                Thread.SpinWait(100);
             }
 
             var node = _sentinel;
             while (node != null)
             {
                 node.Service(_receiveBuffer);
+                Thread.SpinWait(1);
                 node = node.Next;
             }
         }
@@ -264,6 +307,7 @@ namespace asphyxia
             while (_outgoingCommands.TryDequeue(out var outgoingCommand))
             {
                 _socket.Send(outgoingCommand.Data, outgoingCommand.Length, outgoingCommand.IPEndPoint);
+                Thread.SpinWait(1);
                 outgoingCommand.Dispose();
             }
         }
