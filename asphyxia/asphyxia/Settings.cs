@@ -11,9 +11,9 @@ namespace asphyxia
     public static class Settings
     {
         /// <summary>
-        ///     Conversation
+        ///     ConversationId
         /// </summary>
-        public const uint CONVERSATION = 3847762548;
+        public const uint CONVERSATION_ID = 3847762548;
 
         /// <summary>
         ///     MaxPeers

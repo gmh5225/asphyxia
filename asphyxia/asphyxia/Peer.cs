@@ -90,7 +90,7 @@ namespace asphyxia
             IPEndPoint = ipEndPoint;
             _sendBuffer = sendBuffer;
             _state = state;
-            _kcp = new Kcp(CONVERSATION, Output);
+            _kcp = new Kcp(CONVERSATION_ID, Output);
             _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE);
             var current = Current;
