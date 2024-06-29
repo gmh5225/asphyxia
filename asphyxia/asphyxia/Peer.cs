@@ -302,6 +302,7 @@ namespace asphyxia
                 _state = Disconnecting;
                 _sendBuffer[0] = (byte)Header.Disconnect;
                 RawSend(_sendBuffer, 1);
+                return;
             }
 
             if (_state == Disconnecting || _state == Disconnected)
