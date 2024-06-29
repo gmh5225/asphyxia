@@ -82,8 +82,8 @@ namespace asphyxia
                         }
 
                         Console.WriteLine($"Data: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}] to [{peer.Id}] [{peer.IPEndPoint}]");
-                        Unsafe.Write((void*)packet.Data, peer.IPEndPoint);
-                        var outgoing = new NetworkOutgoing(networkEvent.Peer, packet);
+                        Unsafe.Write((void*)packet.Data, networkEvent.Peer.IPEndPoint);
+                        var outgoing = new NetworkOutgoing(peer, packet);
                         _outgoings.Enqueue(outgoing);
                         continue;
                     case NetworkEventType.Timeout:

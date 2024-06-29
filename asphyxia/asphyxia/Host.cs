@@ -331,6 +331,8 @@ namespace asphyxia
         /// <param name="peer">Peer</param>
         internal void Remove(int hashCode, Peer peer)
         {
+            if (_peer == peer)
+                _peer = null;
             _idPool.Enqueue(peer.Id);
             _peers.Remove(hashCode);
             if (peer.Previous != null)
