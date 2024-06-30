@@ -1,5 +1,5 @@
 //------------------------------------------------------------
-// Onryo
+// Onryo あなたたちを許すことはできません
 // Copyright © 2024 Molth Nevin. All rights reserved.
 //------------------------------------------------------------
 
@@ -356,7 +356,7 @@ namespace asphyxia
         /// <param name="buffer">Receive buffer</param>
         internal void Service(byte* buffer)
         {
-            if (_lastReceiveTimestamp + TIMEOUT <= Current)
+            if (_lastReceiveTimestamp + PING_TIMEOUT <= Current)
             {
                 Timeout();
                 return;

@@ -1,6 +1,8 @@
 //------------------------------------------------------------
-// Onryo
+// Onryo あなたたちを許すことはできません
 // Copyright © 2024 Molth Nevin. All rights reserved.
+// あなたたちを絶対に許すことはできません
+// ☀️💃🌙
 //------------------------------------------------------------
 
 #if UNITY_2021_3_OR_NEWER || GODOT
@@ -86,9 +88,9 @@ namespace asphyxia
         private Peer? _peer;
 
         /// <summary>
-        ///     Poll interval
+        ///     Poll timeout
         /// </summary>
-        private int _pollInterval;
+        private int _pollTimeout;
 
         /// <summary>
         ///     State lock
@@ -96,9 +98,19 @@ namespace asphyxia
         private readonly object _lock = new();
 
         /// <summary>
+        ///     Disposed
+        /// </summary>
+        private int _disposed;
+
+        /// <summary>
         ///     Is created
         /// </summary>
         public bool IsSet => _socket.IsSet;
+
+        /// <summary>
+        ///     LocalEndPoint
+        /// </summary>
+        public NanoIPEndPoint LocalEndPoint => _socket.LocalEndPoint;
 
         /// <summary>
         ///     Dispose
@@ -127,7 +139,9 @@ namespace asphyxia
                 }
 
                 _peer = null;
-                _pollInterval = 0;
+                _pollTimeout = SOCKET_POLL_TIMEOUT_MIN;
+                if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
+                    return;
                 GC.SuppressFinalize(this);
             }
         }
@@ -167,6 +181,8 @@ namespace asphyxia
                 _receiveBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _sendBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _maxPeers = maxPeers;
+                if (Interlocked.CompareExchange(ref _disposed, 0, 1) != 1)
+                    return;
                 GC.ReRegisterForFinalize(this);
             }
         }
@@ -237,9 +253,9 @@ namespace asphyxia
         /// </summary>
         public void Service()
         {
-            if (_socket.Poll(_pollInterval))
+            if (_socket.Poll(_pollTimeout))
             {
-                _pollInterval = 0;
+                _pollTimeout = SOCKET_POLL_TIMEOUT_MIN;
                 var received = 0;
                 var remoteEndPoint = _remoteEndPoint;
                 while (received < MAX_EVENTS && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
@@ -292,21 +308,21 @@ namespace asphyxia
                     {
                         received++;
                         remoteEndPoint = _remoteEndPoint;
-                        Thread.SpinWait(1);
+                        Thread.SpinWait(SOCKET_ITERATIONS);
                     }
                 }
             }
             else
             {
-                _pollInterval = 1;
-                Thread.SpinWait(100);
+                _pollTimeout = SOCKET_POLL_TIMEOUT_MAX;
+                Thread.SpinWait(SOCKET_POLL_FAILED_ITERATIONS);
             }
 
             var node = _sentinel;
             while (node != null)
             {
                 node.Service(_receiveBuffer);
-                Thread.SpinWait(1);
+                Thread.SpinWait(SOCKET_ITERATIONS);
                 node = node.Next;
             }
         }
@@ -319,7 +335,7 @@ namespace asphyxia
             while (_outgoingCommands.TryDequeue(out var outgoingCommand))
             {
                 _socket.Send(outgoingCommand.Data, outgoingCommand.Length, outgoingCommand.IPEndPoint);
-                Thread.SpinWait(1);
+                Thread.SpinWait(SOCKET_ITERATIONS);
                 outgoingCommand.Dispose();
             }
         }
