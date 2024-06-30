@@ -141,7 +141,7 @@ namespace asphyxia
         ///     Create
         /// </summary>
         /// <param name="maxPeers">Max peers</param>
-        /// <param name="port"></param>
+        /// <param name="port">Port</param>
         public void Create(int maxPeers, ushort port = 0)
         {
             lock (_lock)
@@ -150,7 +150,7 @@ namespace asphyxia
                     throw new InvalidOperationException("Host has created.");
                 if (maxPeers < 0 || maxPeers > MAX_PEERS)
                     throw new ArgumentOutOfRangeException(nameof(maxPeers));
-                _socket.Create(256 * BUFFER_SIZE, 256 * BUFFER_SIZE);
+                _socket.Create(SOCKET_BUFFER_SIZE, SOCKET_BUFFER_SIZE);
                 var localEndPoint = Socket.OSSupportsIPv6 ? NanoIPEndPoint.IPv6Any(port) : NanoIPEndPoint.Any(port);
                 try
                 {
@@ -218,6 +218,18 @@ namespace asphyxia
             _sendBuffer[0] = (byte)Header.Connect;
             peer.RawSend(_sendBuffer, 1);
             return peer;
+        }
+
+        /// <summary>
+        ///     Ping
+        /// </summary>
+        /// <param name="remoteEndPoint">Remote endPoint</param>
+        public void Ping(NanoIPEndPoint remoteEndPoint)
+        {
+            if (!IsSet)
+                return;
+            _sendBuffer[0] = (byte)Header.Ping;
+            _socket.Send(_sendBuffer, 1, &remoteEndPoint);
         }
 
         /// <summary>

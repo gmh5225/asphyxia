@@ -10,7 +10,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\asphyxia\asphyxia.csproj" />
-      <ProjectReference Include="..\Traveler\Traveler.csproj" />
+      <ProjectReference Include="..\NatTravel\NatTravel.csproj" />
     </ItemGroup>
 
 </Project>

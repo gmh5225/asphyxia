@@ -11,7 +11,7 @@ namespace asphyxia
     {
         private static void Main()
         {
-            var service = new TravelerService();
+            var service = new NatTravelService();
             service.Create(4096, 7778);
             Console.CancelKeyPress += (sender, args) =>
             {

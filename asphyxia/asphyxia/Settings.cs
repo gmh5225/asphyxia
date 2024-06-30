@@ -23,7 +23,12 @@ namespace asphyxia
         /// <summary>
         ///     MaxEvents
         /// </summary>
-        public const int MAX_EVENTS = 4096;
+        public const int MAX_EVENTS = MAX_PEERS / TICK_INTERVAL;
+
+        /// <summary>
+        ///     SocketBufferSize
+        /// </summary>
+        public const int SOCKET_BUFFER_SIZE = BUFFER_SIZE << 1;
 
         /// <summary>
         ///     BufferSize

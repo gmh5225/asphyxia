@@ -4,7 +4,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "asphyxia", "asphyxia\asphyx
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App\App.csproj", "{FDA788CD-E23B-46D8-9BAF-1CD631DA78B0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Traveler", "Traveler\Traveler.csproj", "{28A0EB1F-0DC4-4BA7-9360-E8F2FE114AF1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NatTravel", "NatTravel\NatTravel.csproj", "{28A0EB1F-0DC4-4BA7-9360-E8F2FE114AF1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
