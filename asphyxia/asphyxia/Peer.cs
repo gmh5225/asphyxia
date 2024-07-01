@@ -105,6 +105,11 @@ namespace asphyxia
         public bool IsSet => _kcp.IsSet;
 
         /// <summary>
+        ///     Smoothed round-trip time
+        /// </summary>
+        public int RoundTripTime => _kcp.RxSrtt;
+
+        /// <summary>
         ///     Input
         /// </summary>
         /// <param name="buffer">Buffer</param>
