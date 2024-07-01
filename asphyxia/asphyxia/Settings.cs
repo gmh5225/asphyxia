@@ -8,15 +8,10 @@ using static KCP.KCPBASIC;
 namespace asphyxia
 {
     /// <summary>
-    ///     Settings
+    ///     怨靈 Settings
     /// </summary>
     public static class Settings
     {
-        /// <summary>
-        ///     Conversation id
-        /// </summary>
-        public const uint CONVERSATION_ID = 3847762548;
-
         /// <summary>
         ///     Max peers
         /// </summary>

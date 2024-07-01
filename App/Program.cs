@@ -11,6 +11,17 @@ namespace asphyxia
     {
         private static void Main()
         {
+            var a = new Host();
+            a.Create(100, 7777);
+            a.Ping("127.0.0.1", 7777);
+            // GC.Collect();
+            a.Flush();
+            a.Service();
+            Console.ReadLine();
+        }
+
+        private static void StartNatTravelService()
+        {
             var service = new NatTravelService();
             service.Create(4096, 7778);
             Console.CancelKeyPress += (sender, args) =>
@@ -100,7 +111,10 @@ namespace asphyxia
                 if (connected2)
                 {
                     j++;
-                    peer2?.Send(Encoding.UTF8.GetBytes($"client: {j}"));
+                    if (j == 10)
+                        peer?.DisconnectNow();
+                    else if (j < 10)
+                        peer2?.Send(Encoding.UTF8.GetBytes($"client: {j}"));
                 }
 
                 a.Flush();

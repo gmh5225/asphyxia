@@ -78,19 +78,20 @@ namespace asphyxia
         /// <summary>
         ///     Structure
         /// </summary>
+        /// <param name="conv">ConversationId</param>
         /// <param name="host">Host</param>
         /// <param name="id">Id</param>
         /// <param name="ipEndPoint">IPEndPoint</param>
         /// <param name="sendBuffer">Buffer</param>
         /// <param name="state">State</param>
-        internal Peer(Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, State state = State.None)
+        internal Peer(uint conv, Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, State state = State.None)
         {
             _host = host;
             Id = id;
             IPEndPoint = ipEndPoint;
             _sendBuffer = sendBuffer;
             _state = state;
-            _kcp = new Kcp(CONVERSATION_ID, Output);
+            _kcp = new Kcp(conv, Output);
             _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE);
             var current = Current;
@@ -279,9 +280,23 @@ namespace asphyxia
         }
 
         /// <summary>
+        ///     Try disconnect now
+        /// </summary>
+        internal void TryDisconnectNow(uint conv)
+        {
+            if (_kcp.ConversationId != conv || _state == Disconnected)
+                return;
+            if (_state == Connected)
+                _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
+            _state = Disconnected;
+            _kcp.Dispose();
+            _host.Remove(IPEndPoint.GetHashCode(), this);
+        }
+
+        /// <summary>
         ///     Disconnect
         /// </summary>
-        internal void DisconnectInternal()
+        private void DisconnectInternal()
         {
             if (_state == Disconnected)
                 return;
@@ -289,6 +304,24 @@ namespace asphyxia
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
             _state = Disconnected;
             _kcp.Dispose();
+            _host.Remove(IPEndPoint.GetHashCode(), this);
+        }
+
+        /// <summary>
+        ///     Send disconnect now
+        /// </summary>
+        private void SendDisconnectNow()
+        {
+            _state = Disconnected;
+            var conv = _kcp.ConversationId;
+            _kcp.Flush();
+            _kcp.Dispose();
+            _sendBuffer[0] = (byte)Header.Disconnect;
+            _sendBuffer[1] = (byte)DisconnectAcknowledge;
+            _sendBuffer[2] = (byte)Header.Disconnect;
+            _sendBuffer[3] = (byte)DisconnectAcknowledge;
+            Write(_sendBuffer + 4, conv);
+            Output(_sendBuffer, 8);
             _host.Remove(IPEndPoint.GetHashCode(), this);
         }
 
@@ -307,15 +340,7 @@ namespace asphyxia
 
             if (_state == Disconnecting || _state == Disconnected)
                 return;
-            _state = Disconnected;
-            _kcp.Flush();
-            _kcp.Dispose();
-            _sendBuffer[0] = (byte)Header.Disconnect;
-            _sendBuffer[1] = (byte)DisconnectAcknowledge;
-            _sendBuffer[2] = (byte)Header.Disconnect;
-            _sendBuffer[3] = (byte)DisconnectAcknowledge;
-            Output(_sendBuffer, 4);
-            _host.Remove(IPEndPoint.GetHashCode(), this);
+            SendDisconnectNow();
         }
 
         /// <summary>
@@ -327,15 +352,7 @@ namespace asphyxia
                 return;
             if (_state == Connected)
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
-            _state = Disconnected;
-            _kcp.Flush();
-            _kcp.Dispose();
-            _sendBuffer[0] = (byte)Header.Disconnect;
-            _sendBuffer[1] = (byte)DisconnectAcknowledge;
-            _sendBuffer[2] = (byte)Header.Disconnect;
-            _sendBuffer[3] = (byte)DisconnectAcknowledge;
-            Output(_sendBuffer, 4);
-            _host.Remove(IPEndPoint.GetHashCode(), this);
+            SendDisconnectNow();
         }
 
         /// <summary>

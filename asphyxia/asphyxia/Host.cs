@@ -11,9 +11,11 @@ using System.Collections.Generic;
 using System.Threading;
 #endif
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using NanoSockets;
 using static asphyxia.Settings;
 using static System.Runtime.InteropServices.Marshal;
+using static System.Runtime.CompilerServices.Unsafe;
 using static KCP.KCPBASIC;
 
 #pragma warning disable CS8632
@@ -31,6 +33,11 @@ namespace asphyxia
         ///     Socket
         /// </summary>
         private readonly NanoSocket _socket = new();
+
+        /// <summary>
+        ///     Random seed
+        /// </summary>
+        private uint _randomSeed;
 
         /// <summary>
         ///     Buffer
@@ -181,6 +188,8 @@ namespace asphyxia
                 _receiveBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _sendBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _maxPeers = maxPeers;
+                RandomNumberGenerator.Fill(new Span<byte>(_sendBuffer, 4));
+                _randomSeed = Read<uint>(_sendBuffer) + 1831565813;
                 if (Interlocked.CompareExchange(ref _disposed, 0, 1) != 1)
                     return;
                 GC.ReRegisterForFinalize(this);
@@ -218,7 +227,11 @@ namespace asphyxia
                 return peer;
             if (_peers.Count >= _maxPeers)
                 return null;
-            peer = new Peer(this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, State.Connecting);
+            var conv = _randomSeed;
+            conv = (conv ^ (conv >> 15)) * (conv | 1);
+            conv ^= conv + (conv ^ (conv >> 7)) * (conv | 61);
+            conv ^= conv >> 14;
+            peer = new Peer(conv, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, State.Connecting);
             _peers[hashCode] = peer;
             if (_sentinel == null)
             {
@@ -239,6 +252,21 @@ namespace asphyxia
         /// <summary>
         ///     Ping
         /// </summary>
+        /// <param name="ipAddress">IPAddress</param>
+        /// <param name="port">Port</param>
+        public void Ping(string ipAddress, ushort port)
+        {
+            if (!IsSet)
+                return;
+            var remoteEndPoint = NanoIPEndPoint.Create(ipAddress, port);
+            _sendBuffer[0] = (byte)Header.Ping;
+            _socket.Send(_sendBuffer, 1, &remoteEndPoint);
+            Thread.SpinWait(SOCKET_ITERATIONS);
+        }
+
+        /// <summary>
+        ///     Ping
+        /// </summary>
         /// <param name="remoteEndPoint">Remote endPoint</param>
         public void Ping(NanoIPEndPoint remoteEndPoint)
         {
@@ -246,6 +274,7 @@ namespace asphyxia
                 return;
             _sendBuffer[0] = (byte)Header.Ping;
             _socket.Send(_sendBuffer, 1, &remoteEndPoint);
+            Thread.SpinWait(SOCKET_ITERATIONS);
         }
 
         /// <summary>
@@ -264,16 +293,17 @@ namespace asphyxia
                     {
                         if (count < OVERHEAD)
                         {
-                            if (count == 4 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
+                            if (count == 8 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
                             {
+                                var conv = Read<uint>(_receiveBuffer + 4);
                                 if (_peer == null || _remoteEndPoint != remoteEndPoint)
                                 {
                                     if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out _peer))
-                                        _peer.DisconnectInternal();
+                                        _peer.TryDisconnectNow(conv);
                                 }
                                 else
                                 {
-                                    _peer.DisconnectInternal();
+                                    _peer.TryDisconnectNow(conv);
                                 }
                             }
 
@@ -287,7 +317,8 @@ namespace asphyxia
                             {
                                 if (count != 25 || _receiveBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                                     continue;
-                                _peer = new Peer(this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
+                                var conv = Read<uint>(_receiveBuffer);
+                                _peer = new Peer(conv, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
                                 _peers[hashCode] = _peer;
                                 if (_sentinel == null)
                                 {
