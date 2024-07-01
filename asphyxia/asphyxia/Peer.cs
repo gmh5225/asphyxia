@@ -6,6 +6,7 @@
 #if UNITY_2021_3_OR_NEWER || GODOT
 using System;
 #endif
+using System.Runtime.InteropServices;
 using KCP;
 using NanoSockets;
 using static asphyxia.Settings;
@@ -167,11 +168,7 @@ namespace asphyxia
                 return;
             var length = buffer.Length;
             _sendBuffer[0] = (byte)Data;
-            fixed (byte* ptr = &buffer[0])
-            {
-                CopyBlock(_sendBuffer + 1, ptr, (uint)length);
-            }
-
+            CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
             RawSend(_sendBuffer, length + 1);
         }
 
@@ -186,11 +183,7 @@ namespace asphyxia
             if (_state != Connected)
                 return;
             _sendBuffer[0] = (byte)Data;
-            fixed (byte* ptr = &buffer[0])
-            {
-                CopyBlock(_sendBuffer + 1, ptr, (uint)length);
-            }
-
+            CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
             RawSend(_sendBuffer, length + 1);
         }
 
@@ -206,11 +199,7 @@ namespace asphyxia
             if (_state != Connected)
                 return;
             _sendBuffer[0] = (byte)Data;
-            fixed (byte* ptr = &buffer[offset])
-            {
-                CopyBlock(_sendBuffer + 1, ptr, (uint)length);
-            }
-
+            CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
             RawSend(_sendBuffer, length + 1);
         }
 
@@ -223,13 +212,10 @@ namespace asphyxia
         {
             if (_state != Connected)
                 return;
+            var length = buffer.Length;
             _sendBuffer[0] = (byte)Data;
-            fixed (byte* ptr = &buffer[0])
-            {
-                CopyBlock(_sendBuffer + 1, ptr, (uint)buffer.Length);
-            }
-
-            RawSend(_sendBuffer, buffer.Length + 1);
+            CopyBlock(ref *(_sendBuffer + 1), ref MemoryMarshal.GetReference(buffer), (uint)length);
+            RawSend(_sendBuffer, length + 1);
         }
 
         /// <summary>

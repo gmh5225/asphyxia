@@ -156,11 +156,7 @@ namespace asphyxia
         {
             var length = src.Length;
             var data = AllocHGlobal(length);
-            fixed (byte* ptr = &src[0])
-            {
-                CopyBlock((byte*)data, ptr, (uint)length);
-            }
-
+            CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
             return new DataPacket(data, length);
         }
 
@@ -173,11 +169,7 @@ namespace asphyxia
         public static DataPacket Create(byte[] src, int length)
         {
             var data = AllocHGlobal(length);
-            fixed (byte* ptr = &src[0])
-            {
-                CopyBlock((byte*)data, ptr, (uint)length);
-            }
-
+            CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
             return new DataPacket(data, length);
         }
 
@@ -191,11 +183,7 @@ namespace asphyxia
         public static DataPacket Create(byte[] src, int offset, int length)
         {
             var data = AllocHGlobal(length);
-            fixed (byte* ptr = &src[offset])
-            {
-                CopyBlock((byte*)data, ptr, (uint)length);
-            }
-
+            CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
             return new DataPacket(data, length);
         }
 
@@ -208,11 +196,7 @@ namespace asphyxia
         {
             var length = src.Length;
             var data = AllocHGlobal(length);
-            fixed (byte* ptr = &src[0])
-            {
-                CopyBlock((byte*)data, ptr, (uint)length);
-            }
-
+            CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
             return new DataPacket(data, length);
         }
 
@@ -283,26 +267,14 @@ namespace asphyxia
         ///     CopyTo
         /// </summary>
         /// <param name="dst">Destination</param>
-        public void CopyTo(byte[] dst)
-        {
-            fixed (byte* ptr = &dst[0])
-            {
-                CopyBlock(ptr, (byte*)Data, (uint)Length);
-            }
-        }
+        public void CopyTo(byte[] dst) => CopyBlock(ref dst[0], ref *(byte*)Data, (uint)Length);
 
         /// <summary>
         ///     CopyTo
         /// </summary>
         /// <param name="dst">Destination</param>
         /// <param name="length">Length</param>
-        public void CopyTo(byte[] dst, int length)
-        {
-            fixed (byte* ptr = &dst[0])
-            {
-                CopyBlock(ptr, (byte*)Data, (uint)length);
-            }
-        }
+        public void CopyTo(byte[] dst, int length) => CopyBlock(ref dst[0], ref *(byte*)Data, (uint)Length);
 
         /// <summary>
         ///     CopyTo
@@ -310,25 +282,13 @@ namespace asphyxia
         /// <param name="dst">Destination</param>
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
-        public void CopyTo(byte[] dst, int offset, int length)
-        {
-            fixed (byte* ptr = &dst[offset])
-            {
-                CopyBlock(ptr, (byte*)Data, (uint)length);
-            }
-        }
+        public void CopyTo(byte[] dst, int offset, int length) => CopyBlock(ref dst[0], ref *(byte*)Data, (uint)Length);
 
         /// <summary>
         ///     CopyTo
         /// </summary>
         /// <param name="dst">Destination</param>
-        public void CopyTo(Span<byte> dst)
-        {
-            fixed (byte* ptr = &dst[0])
-            {
-                CopyBlock(ptr, (byte*)Data, (uint)Length);
-            }
-        }
+        public void CopyTo(Span<byte> dst) => CopyBlock(ref dst[0], ref *(byte*)Data, (uint)Length);
 
         /// <summary>
         ///     AsSpan
