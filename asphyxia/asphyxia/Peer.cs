@@ -78,20 +78,20 @@ namespace asphyxia
         /// <summary>
         ///     Structure
         /// </summary>
-        /// <param name="conv">ConversationId</param>
+        /// <param name="conversationId">ConversationId</param>
         /// <param name="host">Host</param>
         /// <param name="id">Id</param>
         /// <param name="ipEndPoint">IPEndPoint</param>
         /// <param name="sendBuffer">Buffer</param>
         /// <param name="state">State</param>
-        internal Peer(uint conv, Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, State state = State.None)
+        internal Peer(uint conversationId, Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, State state = State.None)
         {
             _host = host;
             Id = id;
             IPEndPoint = ipEndPoint;
             _sendBuffer = sendBuffer;
             _state = state;
-            _kcp = new Kcp(conv, Output);
+            _kcp = new Kcp(conversationId, Output);
             _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE);
             var current = Current;

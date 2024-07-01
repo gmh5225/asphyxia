@@ -10,12 +10,11 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 #endif
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using NanoSockets;
+using static System.Net.Sockets.Socket;
 using static asphyxia.Settings;
 using static System.Runtime.InteropServices.Marshal;
-using static System.Runtime.CompilerServices.Unsafe;
 using static KCP.KCPBASIC;
 
 #pragma warning disable CS8632
@@ -33,11 +32,6 @@ namespace asphyxia
         ///     Socket
         /// </summary>
         private readonly NanoSocket _socket = new();
-
-        /// <summary>
-        ///     Random seed
-        /// </summary>
-        private uint _randomSeed;
 
         /// <summary>
         ///     Buffer
@@ -172,7 +166,7 @@ namespace asphyxia
                 if (maxPeers < 0 || maxPeers > MAX_PEERS)
                     throw new ArgumentOutOfRangeException(nameof(maxPeers));
                 _socket.Create(SOCKET_BUFFER_SIZE, SOCKET_BUFFER_SIZE);
-                var localEndPoint = Socket.OSSupportsIPv6 ? NanoIPEndPoint.IPv6Any(port) : NanoIPEndPoint.Any(port);
+                var localEndPoint = OSSupportsIPv6 ? NanoIPEndPoint.IPv6Any(port) : NanoIPEndPoint.Any(port);
                 try
                 {
                     _socket.Bind(ref localEndPoint);
@@ -188,8 +182,6 @@ namespace asphyxia
                 _receiveBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _sendBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _maxPeers = maxPeers;
-                RandomNumberGenerator.Fill(new Span<byte>(_sendBuffer, 4));
-                _randomSeed = Read<uint>(_sendBuffer) + 1831565813;
                 if (Interlocked.CompareExchange(ref _disposed, 0, 1) != 1)
                     return;
                 GC.ReRegisterForFinalize(this);
@@ -227,12 +219,11 @@ namespace asphyxia
                 return peer;
             if (_peers.Count >= _maxPeers)
                 return null;
-            var conv = _randomSeed;
-            conv = (conv ^ (conv >> 15)) * (conv | 1);
-            conv ^= conv + (conv ^ (conv >> 7)) * (conv | 61);
-            conv ^= conv >> 14;
-            peer = new Peer(conv, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, State.Connecting);
+            RandomNumberGenerator.Fill(new Span<byte>(_sendBuffer, 4));
+            var conversationId = *(uint*)_sendBuffer;
+            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, State.Connecting);
             _peers[hashCode] = peer;
+            _peer ??= peer;
             if (_sentinel == null)
             {
                 _sentinel = peer;
@@ -258,10 +249,7 @@ namespace asphyxia
         {
             if (!IsSet)
                 return;
-            var remoteEndPoint = NanoIPEndPoint.Create(ipAddress, port);
-            _sendBuffer[0] = (byte)Header.Ping;
-            _socket.Send(_sendBuffer, 1, &remoteEndPoint);
-            Thread.SpinWait(SOCKET_ITERATIONS);
+            PingInternal(NanoIPEndPoint.Create(ipAddress, port));
         }
 
         /// <summary>
@@ -272,9 +260,18 @@ namespace asphyxia
         {
             if (!IsSet)
                 return;
+            PingInternal(remoteEndPoint);
+        }
+
+        /// <summary>
+        ///     Ping
+        /// </summary>
+        /// <param name="remoteEndPoint">Remote endPoint</param>
+        private void PingInternal(NanoIPEndPoint remoteEndPoint)
+        {
             _sendBuffer[0] = (byte)Header.Ping;
             _socket.Send(_sendBuffer, 1, &remoteEndPoint);
-            Thread.SpinWait(SOCKET_ITERATIONS);
+            Thread.SpinWait(SOCKET_SEND_ITERATIONS);
         }
 
         /// <summary>
@@ -295,15 +292,15 @@ namespace asphyxia
                         {
                             if (count == 8 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
                             {
-                                var conv = Read<uint>(_receiveBuffer + 4);
+                                var conversationId = *(uint*)(_receiveBuffer + 4);
                                 if (_peer == null || _remoteEndPoint != remoteEndPoint)
                                 {
                                     if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out _peer))
-                                        _peer.TryDisconnectNow(conv);
+                                        _peer.TryDisconnectNow(conversationId);
                                 }
                                 else
                                 {
-                                    _peer.TryDisconnectNow(conv);
+                                    _peer.TryDisconnectNow(conversationId);
                                 }
                             }
 
@@ -317,8 +314,8 @@ namespace asphyxia
                             {
                                 if (count != 25 || _receiveBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                                     continue;
-                                var conv = Read<uint>(_receiveBuffer);
-                                _peer = new Peer(conv, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
+                                var conversationId = *(uint*)_receiveBuffer;
+                                _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
                                 _peers[hashCode] = _peer;
                                 if (_sentinel == null)
                                 {
@@ -339,7 +336,7 @@ namespace asphyxia
                     {
                         received++;
                         remoteEndPoint = _remoteEndPoint;
-                        Thread.SpinWait(SOCKET_ITERATIONS);
+                        Thread.SpinWait(SOCKET_RECEIVE_ITERATIONS);
                     }
                 }
             }
@@ -353,7 +350,7 @@ namespace asphyxia
             while (node != null)
             {
                 node.Service(_receiveBuffer);
-                Thread.SpinWait(SOCKET_ITERATIONS);
+                Thread.SpinWait(SERVICE_ITERATIONS);
                 node = node.Next;
             }
         }
@@ -366,7 +363,7 @@ namespace asphyxia
             while (_outgoingCommands.TryDequeue(out var outgoingCommand))
             {
                 _socket.Send(outgoingCommand.Data, outgoingCommand.Length, outgoingCommand.IPEndPoint);
-                Thread.SpinWait(SOCKET_ITERATIONS);
+                Thread.SpinWait(SOCKET_SEND_ITERATIONS);
                 outgoingCommand.Dispose();
             }
         }

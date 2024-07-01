@@ -1,5 +1,5 @@
 //------------------------------------------------------------
-// Onryo あなたたちを許すことはできません
+// 怨靈  あなたたちを許すことはできません
 // Copyright © 2024 Molth Nevin. All rights reserved.
 //------------------------------------------------------------
 
@@ -8,7 +8,7 @@ using static KCP.KCPBASIC;
 namespace asphyxia
 {
     /// <summary>
-    ///     怨靈 Settings
+    ///     Settings
     /// </summary>
     public static class Settings
     {
@@ -43,9 +43,19 @@ namespace asphyxia
         public const int TICK_INTERVAL = (int)INTERVAL_MIN;
 
         /// <summary>
-        ///     Socket iterations
+        ///     Socket send iterations
         /// </summary>
-        public const int SOCKET_ITERATIONS = 1;
+        public const int SOCKET_SEND_ITERATIONS = 1;
+
+        /// <summary>
+        ///     Socket receive iterations
+        /// </summary>
+        public const int SOCKET_RECEIVE_ITERATIONS = 1;
+
+        /// <summary>
+        ///     Service iterations
+        /// </summary>
+        public const int SERVICE_ITERATIONS = 1;
 
         /// <summary>
         ///     Socket non-blocking timeout

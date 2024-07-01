@@ -9,16 +9,7 @@ namespace asphyxia
 {
     public sealed class Program
     {
-        private static void Main()
-        {
-            var a = new Host();
-            a.Create(100, 7777);
-            a.Ping("127.0.0.1", 7777);
-            // GC.Collect();
-            a.Flush();
-            a.Service();
-            Console.ReadLine();
-        }
+        private static void Main() => TestConnection();
 
         private static void StartNatTravelService()
         {
@@ -81,6 +72,8 @@ namespace asphyxia
                         case NetworkEventType.Timeout:
                             Console.WriteLine("Server Timeout: " + networkEvent.Peer.Id);
                             break;
+                        case NetworkEventType.None:
+                            break;
                     }
                 }
 
@@ -103,16 +96,23 @@ namespace asphyxia
                         case NetworkEventType.Timeout:
                             Console.WriteLine("Timeout: " + networkEvent.Peer.Id);
                             break;
+                        case NetworkEventType.None:
+                            break;
                     }
                 }
 
                 if (connected)
-                    peer?.Send(Encoding.UTF8.GetBytes($"server: {i++}"));
+                {
+                    i++;
+                    if (i < 10)
+                        peer?.Send(Encoding.UTF8.GetBytes($"server: {i}"));
+                }
+
                 if (connected2)
                 {
                     j++;
                     if (j == 10)
-                        peer?.DisconnectNow();
+                        peer?.Disconnect();
                     else if (j < 10)
                         peer2?.Send(Encoding.UTF8.GetBytes($"client: {j}"));
                 }

@@ -11,9 +11,9 @@ namespace asphyxia
     public enum NetworkEventType
     {
         /// <summary>
-        ///     Connect
+        ///     None
         /// </summary>
-        Connect,
+        None,
 
         /// <summary>
         ///     Data
@@ -21,13 +21,18 @@ namespace asphyxia
         Data,
 
         /// <summary>
-        ///     Timeout
+        ///     Connect
         /// </summary>
-        Timeout,
+        Connect,
 
         /// <summary>
         ///     Disconnect
         /// </summary>
-        Disconnect
+        Disconnect,
+
+        /// <summary>
+        ///     Timeout
+        /// </summary>
+        Timeout
     }
 }
