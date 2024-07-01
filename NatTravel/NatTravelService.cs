@@ -127,6 +127,9 @@ namespace asphyxia
                         case NetworkEventType.Connect:
                             Console.WriteLine($"Connected: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}]");
                             _peers[networkEvent.Peer.IPEndPoint] = networkEvent.Peer;
+                            var dataPacket = DataPacket.Create(sizeof(NanoIPEndPoint) + 1);
+                            Write((void*)dataPacket.Data, networkEvent.Peer.IPEndPoint);
+                            _outgoings.Enqueue(new NetworkOutgoing(networkEvent.Peer, dataPacket));
                             continue;
                         case NetworkEventType.Data:
                             var packet = networkEvent.Packet;
@@ -153,6 +156,8 @@ namespace asphyxia
                             Console.WriteLine($"Disconnected: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}]");
                             _peers.TryRemove(networkEvent.Peer.IPEndPoint, out _);
                             continue;
+                        case NetworkEventType.None:
+                            break;
                     }
                 }
             }
