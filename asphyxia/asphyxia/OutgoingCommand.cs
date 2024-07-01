@@ -20,7 +20,7 @@ namespace asphyxia
         /// <summary>
         ///     IPEndPoint
         /// </summary>
-        public NanoIPEndPoint* IPEndPoint;
+        public NanoIPEndPoint IPEndPoint;
 
         /// <summary>
         ///     Data
@@ -38,7 +38,7 @@ namespace asphyxia
         /// <param name="ipEndPoint">IPEndPoint</param>
         /// <param name="buffer">Data</param>
         /// <param name="length">Length</param>
-        public OutgoingCommand(NanoIPEndPoint* ipEndPoint, byte* buffer, int length)
+        public OutgoingCommand(NanoIPEndPoint ipEndPoint, byte* buffer, int length)
         {
             IPEndPoint = ipEndPoint;
             Data = (byte*)AllocHGlobal(length);

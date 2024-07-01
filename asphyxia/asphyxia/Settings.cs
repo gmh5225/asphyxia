@@ -18,9 +18,14 @@ namespace asphyxia
         public const int MAX_PEERS = 4096;
 
         /// <summary>
-        ///     Max events
+        ///     Max send events
         /// </summary>
-        public const int MAX_EVENTS = MAX_PEERS / TICK_INTERVAL;
+        public const int MAX_SEND_EVENTS = MAX_RECEIVE_EVENTS << 1;
+
+        /// <summary>
+        ///     Max receive events
+        /// </summary>
+        public const int MAX_RECEIVE_EVENTS = MAX_PEERS / TICK_INTERVAL;
 
         /// <summary>
         ///     Socket buffer size

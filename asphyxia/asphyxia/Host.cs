@@ -71,12 +71,12 @@ namespace asphyxia
         /// <summary>
         ///     Outgoing commands
         /// </summary>
-        private readonly Queue<OutgoingCommand> _outgoingCommands = new(MAX_EVENTS);
+        private readonly Queue<OutgoingCommand> _outgoingCommands = new(MAX_SEND_EVENTS);
 
         /// <summary>
         ///     NetworkEvents
         /// </summary>
-        private readonly Queue<NetworkEvent> _networkEvents = new(MAX_EVENTS);
+        private readonly Queue<NetworkEvent> _networkEvents = new(MAX_RECEIVE_EVENTS);
 
         /// <summary>
         ///     Remote endPoint
@@ -270,8 +270,7 @@ namespace asphyxia
         private void PingInternal(NanoIPEndPoint remoteEndPoint)
         {
             _sendBuffer[0] = (byte)Header.Ping;
-            _socket.Send(_sendBuffer, 1, &remoteEndPoint);
-            Thread.SpinWait(SOCKET_SEND_ITERATIONS);
+            _outgoingCommands.Enqueue(new OutgoingCommand(remoteEndPoint, _sendBuffer, 1));
         }
 
         /// <summary>
@@ -284,7 +283,7 @@ namespace asphyxia
                 _pollTimeout = SOCKET_POLL_TIMEOUT_MIN;
                 var received = 0;
                 var remoteEndPoint = _remoteEndPoint;
-                while (received < MAX_EVENTS && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
+                while (received < MAX_RECEIVE_EVENTS && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
                 {
                     try
                     {
@@ -362,7 +361,7 @@ namespace asphyxia
         {
             while (_outgoingCommands.TryDequeue(out var outgoingCommand))
             {
-                _socket.Send(outgoingCommand.Data, outgoingCommand.Length, outgoingCommand.IPEndPoint);
+                _socket.Send(outgoingCommand.Data, outgoingCommand.Length, &outgoingCommand.IPEndPoint);
                 Thread.SpinWait(SOCKET_SEND_ITERATIONS);
                 outgoingCommand.Dispose();
             }

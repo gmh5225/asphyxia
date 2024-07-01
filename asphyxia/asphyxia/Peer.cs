@@ -124,10 +124,7 @@ namespace asphyxia
         private void Output(byte* buffer, int length)
         {
             _lastSendTimestamp = Current;
-            fixed (NanoIPEndPoint* ptr = &IPEndPoint)
-            {
-                _host.Insert(new OutgoingCommand(ptr, buffer, length));
-            }
+            _host.Insert(new OutgoingCommand(IPEndPoint, buffer, length));
         }
 
         /// <summary>
@@ -137,11 +134,7 @@ namespace asphyxia
         /// <param name="length">Length</param>
         private void DisconnectingOutput(byte* buffer, int length)
         {
-            fixed (NanoIPEndPoint* ptr = &IPEndPoint)
-            {
-                _host.Insert(new OutgoingCommand(ptr, buffer, length));
-            }
-
+            _host.Insert(new OutgoingCommand(IPEndPoint, buffer, length));
             if (_kcp.SendQueueCount == 0)
             {
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
