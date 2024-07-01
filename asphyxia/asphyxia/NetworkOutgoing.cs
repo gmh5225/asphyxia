@@ -12,7 +12,7 @@ namespace asphyxia
     /// <summary>
     ///     Network outgoing
     /// </summary>
-    public struct NetworkOutgoing : IDisposable
+    public unsafe struct NetworkOutgoing : IDisposable
     {
         /// <summary>
         ///     Peer
@@ -48,7 +48,7 @@ namespace asphyxia
         /// </summary>
         public void Send()
         {
-            Peer.Send(Packet.AsSpan());
+            Peer.Send((byte*)Packet.Data, Packet.Length);
             Packet.Dispose();
         }
 
