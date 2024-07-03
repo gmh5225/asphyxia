@@ -1,6 +1,6 @@
 //------------------------------------------------------------
-// Onryo あなたたちを許すことはできません
-// Copyright © 2024 Molth Nevin. All rights reserved.
+// あなたたちを許すことはできません
+// Copyright © 2024 怨靈. All rights reserved.
 //------------------------------------------------------------
 
 #if UNITY_2021_3_OR_NEWER || GODOT
@@ -11,13 +11,14 @@ using KCP;
 using NanoSockets;
 using static asphyxia.Settings;
 using static asphyxia.Time;
-using static asphyxia.State;
+using static asphyxia.PeerState;
 using static asphyxia.Header;
 using static System.Runtime.CompilerServices.Unsafe;
 
 #pragma warning disable CS8632
 
 // ReSharper disable ConvertIfStatementToSwitchStatement
+// ReSharper disable ConvertToAutoPropertyWithPrivateSetter
 
 namespace asphyxia
 {
@@ -35,11 +36,6 @@ namespace asphyxia
         ///     Next
         /// </summary>
         internal Peer? Next;
-
-        /// <summary>
-        ///     State
-        /// </summary>
-        private State _state;
 
         /// <summary>
         ///     Host
@@ -77,6 +73,11 @@ namespace asphyxia
         private uint _lastReceiveTimestamp;
 
         /// <summary>
+        ///     Peer state
+        /// </summary>
+        private PeerState _state;
+
+        /// <summary>
         ///     Structure
         /// </summary>
         /// <param name="conversationId">ConversationId</param>
@@ -85,7 +86,7 @@ namespace asphyxia
         /// <param name="ipEndPoint">IPEndPoint</param>
         /// <param name="sendBuffer">Buffer</param>
         /// <param name="state">State</param>
-        internal Peer(uint conversationId, Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, State state = State.None)
+        internal Peer(uint conversationId, Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, PeerState state = PeerState.None)
         {
             _host = host;
             Id = id;
@@ -104,6 +105,11 @@ namespace asphyxia
         ///     Is created
         /// </summary>
         public bool IsSet => _kcp.IsSet;
+
+        /// <summary>
+        ///     Peer state
+        /// </summary>
+        public PeerState State => _state;
 
         /// <summary>
         ///     Smoothed round-trip time
@@ -155,21 +161,21 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal void RawSend(byte* buffer, int length) => _kcp.Send(buffer, length);
+        internal int SendInternal(byte* buffer, int length) => _kcp.Send(buffer, length);
 
         /// <summary>
         ///     Send
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <returns>Send bytes</returns>
-        public void Send(byte[] buffer)
+        public int Send(byte[] buffer)
         {
             if (_state != Connected)
-                return;
+                return -1;
             var length = buffer.Length;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
-            RawSend(_sendBuffer, length + 1);
+            return SendInternal(_sendBuffer, length + 1);
         }
 
         /// <summary>
@@ -178,13 +184,13 @@ namespace asphyxia
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
         /// <returns>Send bytes</returns>
-        public void Send(byte[] buffer, int length)
+        public int Send(byte[] buffer, int length)
         {
             if (_state != Connected)
-                return;
+                return -1;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
-            RawSend(_sendBuffer, length + 1);
+            return SendInternal(_sendBuffer, length + 1);
         }
 
         /// <summary>
@@ -194,13 +200,13 @@ namespace asphyxia
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
         /// <returns>Send bytes</returns>
-        public void Send(byte[] buffer, int offset, int length)
+        public int Send(byte[] buffer, int offset, int length)
         {
             if (_state != Connected)
-                return;
+                return -1;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
-            RawSend(_sendBuffer, length + 1);
+            return SendInternal(_sendBuffer, length + 1);
         }
 
         /// <summary>
@@ -208,14 +214,29 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <returns>Send bytes</returns>
-        public void Send(ReadOnlySpan<byte> buffer)
+        public int Send(ReadOnlySpan<byte> buffer)
         {
             if (_state != Connected)
-                return;
+                return -1;
             var length = buffer.Length;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(ref *(_sendBuffer + 1), ref MemoryMarshal.GetReference(buffer), (uint)length);
-            RawSend(_sendBuffer, length + 1);
+            return SendInternal(_sendBuffer, length + 1);
+        }
+
+        /// <summary>
+        ///     Send
+        /// </summary>
+        /// <param name="buffer">Buffer</param>
+        /// <returns>Send bytes</returns>
+        public int Send(ReadOnlyMemory<byte> buffer)
+        {
+            if (_state != Connected)
+                return -1;
+            var length = buffer.Length;
+            _sendBuffer[0] = (byte)Data;
+            CopyBlock(ref *(_sendBuffer + 1), ref MemoryMarshal.GetReference(buffer.Span), (uint)length);
+            return SendInternal(_sendBuffer, length + 1);
         }
 
         /// <summary>
@@ -224,13 +245,13 @@ namespace asphyxia
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
         /// <returns>Send bytes</returns>
-        public void Send(byte* buffer, int length)
+        public int Send(byte* buffer, int length)
         {
             if (_state != Connected)
-                return;
+                return -1;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(_sendBuffer + 1, buffer, (uint)length);
-            RawSend(_sendBuffer, length + 1);
+            return SendInternal(_sendBuffer, length + 1);
         }
 
         /// <summary>
@@ -240,13 +261,13 @@ namespace asphyxia
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
         /// <returns>Send bytes</returns>
-        public void Send(byte* buffer, int offset, int length)
+        public int Send(byte* buffer, int offset, int length)
         {
             if (_state != Connected)
-                return;
+                return -1;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(_sendBuffer + 1, buffer + offset, (uint)length);
-            RawSend(_sendBuffer, length + 1);
+            return SendInternal(_sendBuffer, length + 1);
         }
 
         /// <summary>
@@ -318,7 +339,7 @@ namespace asphyxia
             {
                 _state = Disconnecting;
                 _sendBuffer[0] = (byte)Header.Disconnect;
-                RawSend(_sendBuffer, 1);
+                SendInternal(_sendBuffer, 1);
                 return;
             }
 
@@ -348,7 +369,7 @@ namespace asphyxia
                 return;
             _state = Disconnecting;
             _sendBuffer[0] = (byte)Header.Disconnect;
-            RawSend(_sendBuffer, 1);
+            SendInternal(_sendBuffer, 1);
         }
 
         /// <summary>
@@ -357,13 +378,14 @@ namespace asphyxia
         /// <param name="buffer">Receive buffer</param>
         internal void Service(byte* buffer)
         {
-            if (_lastReceiveTimestamp + PING_TIMEOUT <= Current)
+            if (_lastReceiveTimestamp + PEER_TIMEOUT <= Current)
             {
                 Timeout();
                 return;
             }
 
-            while (true)
+            var serviceInterval = 0;
+            while (serviceInterval++ < SERVICE_THROTTLE_INTERVAL)
             {
                 var received = _kcp.Receive(buffer, BUFFER_SIZE);
                 if (received < 0)
@@ -387,11 +409,11 @@ namespace asphyxia
                                 goto error;
                             continue;
                         case (byte)Connect:
-                            if (_state != State.None)
+                            if (_state != PeerState.None)
                                 goto error;
                             _state = ConnectAcknowledging;
                             buffer[0] = (byte)ConnectAcknowledge;
-                            RawSend(buffer, 1);
+                            SendInternal(buffer, 1);
                             continue;
                         case (byte)ConnectAcknowledge:
                             if (_state != Connecting)
@@ -399,7 +421,7 @@ namespace asphyxia
                             _state = Connected;
                             _host.Insert(new NetworkEvent(NetworkEventType.Connect, this));
                             buffer[0] = (byte)ConnectEstablish;
-                            RawSend(buffer, 1);
+                            SendInternal(buffer, 1);
                             continue;
                         case (byte)ConnectEstablish:
                             if (_state != ConnectAcknowledging)
@@ -418,7 +440,7 @@ namespace asphyxia
                             _state = Disconnected;
                             _kcp.SetOutput(DisconnectingOutput);
                             buffer[0] = (byte)DisconnectAcknowledge;
-                            RawSend(buffer, 1);
+                            SendInternal(buffer, 1);
                             continue;
                         case (byte)DisconnectAcknowledge:
                             if (_state != Disconnecting)
@@ -440,7 +462,7 @@ namespace asphyxia
             {
                 _lastSendTimestamp = current;
                 buffer[0] = (byte)Ping;
-                RawSend(buffer, 1);
+                SendInternal(buffer, 1);
             }
 
             _kcp.Update(current);

@@ -1,14 +1,14 @@
 //------------------------------------------------------------
-// Onryo あなたたちを許すことはできません
-// Copyright © 2024 Molth Nevin. All rights reserved.
+// あなたたちを許すことはできません
+// Copyright © 2024 怨靈. All rights reserved.
 //------------------------------------------------------------
 
 namespace asphyxia
 {
     /// <summary>
-    ///     State
+    ///     Peer state
     /// </summary>
-    internal enum State
+    public enum PeerState
     {
         /// <summary>
         ///     None

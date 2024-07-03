@@ -1,8 +1,6 @@
 //------------------------------------------------------------
-// Onryo あなたたちを許すことはできません
-// Copyright © 2024 Molth Nevin. All rights reserved.
-// あなたたちを絶対に許すことはできません
-// ☀️💃🌙
+// あなたたちを許すことはできません
+// Copyright © 2024 怨靈. All rights reserved.
 //------------------------------------------------------------
 
 #if UNITY_2021_3_OR_NEWER || GODOT
@@ -221,7 +219,7 @@ namespace asphyxia
                 return null;
             RandomNumberGenerator.Fill(new Span<byte>(_sendBuffer, 4));
             var conversationId = *(uint*)_sendBuffer;
-            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, State.Connecting);
+            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, PeerState.Connecting);
             _peers[hashCode] = peer;
             _peer ??= peer;
             if (_sentinel == null)
@@ -236,7 +234,7 @@ namespace asphyxia
             }
 
             _sendBuffer[0] = (byte)Header.Connect;
-            peer.RawSend(_sendBuffer, 1);
+            peer.SendInternal(_sendBuffer, 1);
             return peer;
         }
 
@@ -342,7 +340,7 @@ namespace asphyxia
             else
             {
                 _pollTimeout = SOCKET_POLL_TIMEOUT_MAX;
-                Thread.SpinWait(SOCKET_POLL_FAILED_ITERATIONS);
+                Thread.SpinWait(HOST_BANDWIDTH_THROTTLE_ITERATIONS);
             }
 
             var node = _sentinel;

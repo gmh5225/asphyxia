@@ -1,6 +1,6 @@
 //------------------------------------------------------------
-// 怨靈  あなたたちを許すことはできません
-// Copyright © 2024 Molth Nevin. All rights reserved.
+// あなたたちを許すことはできません
+// Copyright © 2024 怨靈. All rights reserved.
 //------------------------------------------------------------
 
 using static KCP.KCPBASIC;
@@ -73,9 +73,14 @@ namespace asphyxia
         public const int SOCKET_POLL_TIMEOUT_MAX = 1;
 
         /// <summary>
-        ///     Socket poll failed iterations
+        ///     Host bandwidth throttle iterations
         /// </summary>
-        public const int SOCKET_POLL_FAILED_ITERATIONS = 100;
+        public const int HOST_BANDWIDTH_THROTTLE_ITERATIONS = 1000;
+
+        /// <summary>
+        ///     Service throttle interval
+        /// </summary>
+        public const int SERVICE_THROTTLE_INTERVAL = 5000;
 
         /// <summary>
         ///     Ping interval
@@ -83,9 +88,9 @@ namespace asphyxia
         public const int PING_INTERVAL = 500;
 
         /// <summary>
-        ///     Ping timeout
+        ///     Peer timeout
         /// </summary>
-        public const int PING_TIMEOUT = 5000;
+        public const int PEER_TIMEOUT = 5000;
 
         /// <summary>
         ///     No delay
