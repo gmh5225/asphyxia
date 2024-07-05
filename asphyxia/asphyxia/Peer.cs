@@ -15,6 +15,7 @@ using static asphyxia.PeerState;
 using static asphyxia.Header;
 using static System.Runtime.CompilerServices.Unsafe;
 
+#pragma warning disable CS8602
 #pragma warning disable CS8632
 
 // ReSharper disable ConvertIfStatementToSwitchStatement
@@ -236,6 +237,21 @@ namespace asphyxia
             var length = buffer.Length;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(ref *(_sendBuffer + 1), ref MemoryMarshal.GetReference(buffer.Span), (uint)length);
+            return SendInternal(_sendBuffer, length + 1);
+        }
+
+        /// <summary>
+        ///     Send
+        /// </summary>
+        /// <param name="buffer">Buffer</param>
+        /// <returns>Send bytes</returns>
+        public int Send(ArraySegment<byte> buffer)
+        {
+            if (_state != Connected)
+                return -1;
+            var length = buffer.Count;
+            _sendBuffer[0] = (byte)Data;
+            CopyBlock(ref *(_sendBuffer + 1), ref buffer.Array[buffer.Offset], (uint)length);
             return SendInternal(_sendBuffer, length + 1);
         }
 
