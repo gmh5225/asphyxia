@@ -217,8 +217,9 @@ namespace asphyxia
                 return peer;
             if (_peers.Count >= _maxPeers)
                 return null;
-            RandomNumberGenerator.Fill(new Span<byte>(_sendBuffer, 4));
-            var conversationId = *(uint*)_sendBuffer;
+            var buffer = stackalloc byte[4];
+            RandomNumberGenerator.Fill(new Span<byte>(buffer, 4));
+            var conversationId = *(uint*)buffer;
             peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, PeerState.Connecting);
             _peers[hashCode] = peer;
             _peer ??= peer;
@@ -233,8 +234,8 @@ namespace asphyxia
                 _sentinel = peer;
             }
 
-            _sendBuffer[0] = (byte)Header.Connect;
-            peer.SendInternal(_sendBuffer, 1);
+            buffer[0] = (byte)Header.Connect;
+            peer.SendInternal(buffer, 1);
             return peer;
         }
 
