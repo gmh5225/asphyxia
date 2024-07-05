@@ -79,6 +79,11 @@ namespace asphyxia
         private PeerState _state;
 
         /// <summary>
+        ///     Next update Timestamp
+        /// </summary>
+        private uint _nextUpdateTimestamp;
+
+        /// <summary>
         ///     Structure
         /// </summary>
         /// <param name="conversationId">ConversationId</param>
@@ -124,6 +129,7 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal void Input(byte* buffer, int length)
         {
+            _nextUpdateTimestamp = 0;
             if (_state == Connected)
                 _lastReceiveTimestamp = Current;
             _kcp.Input(buffer, length);
@@ -162,7 +168,11 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal int SendInternal(byte* buffer, int length) => _kcp.Send(buffer, length);
+        internal int SendInternal(byte* buffer, int length)
+        {
+            _nextUpdateTimestamp = 0;
+            return _kcp.Send(buffer, length);
+        }
 
         /// <summary>
         ///     Send
@@ -481,7 +491,11 @@ namespace asphyxia
                 SendInternal(buffer, 1);
             }
 
-            _kcp.Update(current);
+            if (current >= _nextUpdateTimestamp)
+            {
+                _kcp.Update(current);
+                _nextUpdateTimestamp = _kcp.Check(current);
+            }
         }
     }
 }
