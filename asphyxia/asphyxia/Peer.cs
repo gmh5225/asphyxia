@@ -20,6 +20,7 @@ using static System.Runtime.CompilerServices.Unsafe;
 
 // ReSharper disable ConvertIfStatementToSwitchStatement
 // ReSharper disable ConvertToAutoPropertyWithPrivateSetter
+// ReSharper disable PossibleNullReferenceException
 
 namespace asphyxia
 {
