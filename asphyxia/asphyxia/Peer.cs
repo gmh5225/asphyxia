@@ -495,7 +495,8 @@ namespace asphyxia
             if (current >= _nextUpdateTimestamp)
             {
                 _kcp.Update(current);
-                _nextUpdateTimestamp = _kcp.Check(current);
+                if (_kcp.IsSet)
+                    _nextUpdateTimestamp = _kcp.Check(current);
             }
         }
     }
