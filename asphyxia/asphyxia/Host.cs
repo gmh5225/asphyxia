@@ -280,9 +280,9 @@ namespace asphyxia
             if (_socket.Poll(_pollTimeout))
             {
                 _pollTimeout = SOCKET_POLL_TIMEOUT_MIN;
-                var received = 0;
+                var receivedTimes = 0;
                 var remoteEndPoint = _remoteEndPoint;
-                while (received < MAX_RECEIVE_EVENTS && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
+                while (receivedTimes++ < MAX_RECEIVE_EVENTS && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
                 {
                     try
                     {
@@ -332,7 +332,6 @@ namespace asphyxia
                     }
                     finally
                     {
-                        received++;
                         remoteEndPoint = _remoteEndPoint;
                         Thread.SpinWait(SOCKET_RECEIVE_ITERATIONS);
                     }
@@ -340,8 +339,14 @@ namespace asphyxia
             }
             else
             {
-                _pollTimeout = SOCKET_POLL_TIMEOUT_MAX;
-                Thread.SpinWait(HOST_BANDWIDTH_THROTTLE_ITERATIONS);
+                if (_pollTimeout != SOCKET_POLL_TIMEOUT_MAX)
+                {
+                    _pollTimeout += SOCKET_POLL_TIMEOUT_INCREMENT;
+                    if (_pollTimeout > SOCKET_POLL_TIMEOUT_MAX)
+                        _pollTimeout = SOCKET_POLL_TIMEOUT_MAX;
+                }
+
+                Thread.SpinWait(HOST_BANDWIDTH_THROTTLE_ITERATIONS * _pollTimeout);
             }
 
             var node = _sentinel;

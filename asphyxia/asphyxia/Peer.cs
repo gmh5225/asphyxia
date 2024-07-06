@@ -411,8 +411,8 @@ namespace asphyxia
                 return;
             }
 
-            var serviceInterval = 0;
-            while (serviceInterval++ < SERVICE_THROTTLE_INTERVAL)
+            var serviceTimes = 0;
+            while (serviceTimes++ < SERVICE_THROTTLE_TIMES)
             {
                 var received = _kcp.Receive(buffer, BUFFER_SIZE);
                 if (received < 0)

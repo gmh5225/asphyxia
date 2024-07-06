@@ -68,19 +68,24 @@ namespace asphyxia
         public const int SOCKET_POLL_TIMEOUT_MIN = 0;
 
         /// <summary>
+        ///     Socket poll timeout increment
+        /// </summary>
+        public const int SOCKET_POLL_TIMEOUT_INCREMENT = 1;
+
+        /// <summary>
         ///     Socket poll timeout
         /// </summary>
-        public const int SOCKET_POLL_TIMEOUT_MAX = 1;
+        public const int SOCKET_POLL_TIMEOUT_MAX = 10;
 
         /// <summary>
         ///     Host bandwidth throttle iterations
         /// </summary>
-        public const int HOST_BANDWIDTH_THROTTLE_ITERATIONS = 1000;
+        public const int HOST_BANDWIDTH_THROTTLE_ITERATIONS = 100;
 
         /// <summary>
-        ///     Service throttle interval
+        ///     Service throttle times
         /// </summary>
-        public const int SERVICE_THROTTLE_INTERVAL = 5000;
+        public const int SERVICE_THROTTLE_TIMES = 5000;
 
         /// <summary>
         ///     Ping interval
