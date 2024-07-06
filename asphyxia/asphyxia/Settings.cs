@@ -3,8 +3,6 @@
 // Copyright © 2024 怨靈. All rights reserved.
 //------------------------------------------------------------
 
-using static KCP.KCPBASIC;
-
 namespace asphyxia
 {
     /// <summary>
@@ -45,7 +43,7 @@ namespace asphyxia
         /// <summary>
         ///     Tick interval
         /// </summary>
-        public const int TICK_INTERVAL = (int)INTERVAL_MIN;
+        public const int TICK_INTERVAL = 1;
 
         /// <summary>
         ///     Socket send iterations
@@ -55,7 +53,12 @@ namespace asphyxia
         /// <summary>
         ///     Socket send throttle
         /// </summary>
-        public const int SOCKET_SEND_THROTTLE = 255;
+        public const int SOCKET_SEND_THROTTLE = MAX_SEND_EVENTS / (HOST_BANDWIDTH_THROTTLE_ITERATIONS << 1);
+
+        /// <summary>
+        ///     Socket receive throttle
+        /// </summary>
+        public const int SOCKET_RECEIVE_THROTTLE = MAX_RECEIVE_EVENTS / HOST_BANDWIDTH_THROTTLE_ITERATIONS;
 
         /// <summary>
         ///     Socket receive iterations

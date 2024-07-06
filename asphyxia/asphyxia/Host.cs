@@ -333,7 +333,7 @@ namespace asphyxia
                     finally
                     {
                         remoteEndPoint = _remoteEndPoint;
-                        Thread.SpinWait(SOCKET_RECEIVE_ITERATIONS);
+                        Thread.SpinWait(receivedTimes > 0 && receivedTimes % SOCKET_RECEIVE_THROTTLE == 0 ? HOST_BANDWIDTH_THROTTLE_ITERATIONS : SOCKET_RECEIVE_ITERATIONS);
                     }
                 }
             }
@@ -353,7 +353,6 @@ namespace asphyxia
             while (node != null)
             {
                 node.Service(_receiveBuffer);
-                Thread.SpinWait(SERVICE_ITERATIONS);
                 node = node.Next;
             }
         }
@@ -363,21 +362,13 @@ namespace asphyxia
         /// </summary>
         public void Flush()
         {
-            var sentBytes = 0;
+            var sentTimes = 0;
             while (_outgoingCommands.TryDequeue(out var outgoingCommand))
             {
-                sentBytes += outgoingCommand.Length;
+                sentTimes++;
                 _socket.Send(outgoingCommand.Data, outgoingCommand.Length, &outgoingCommand.IPEndPoint);
                 outgoingCommand.Dispose();
-                if (sentBytes < 255)
-                {
-                    Thread.SpinWait(SOCKET_SEND_ITERATIONS);
-                }
-                else
-                {
-                    sentBytes = 0;
-                    Thread.SpinWait(HOST_BANDWIDTH_THROTTLE_ITERATIONS);
-                }
+                Thread.SpinWait(sentTimes > 0 && sentTimes % SOCKET_SEND_THROTTLE == 0 ? SOCKET_SEND_ITERATIONS : HOST_BANDWIDTH_THROTTLE_ITERATIONS);
             }
         }
 
