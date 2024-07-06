@@ -363,11 +363,21 @@ namespace asphyxia
         /// </summary>
         public void Flush()
         {
+            var sentBytes = 0;
             while (_outgoingCommands.TryDequeue(out var outgoingCommand))
             {
+                sentBytes += outgoingCommand.Length;
                 _socket.Send(outgoingCommand.Data, outgoingCommand.Length, &outgoingCommand.IPEndPoint);
-                Thread.SpinWait(SOCKET_SEND_ITERATIONS);
                 outgoingCommand.Dispose();
+                if (sentBytes < 255)
+                {
+                    Thread.SpinWait(SOCKET_SEND_ITERATIONS);
+                }
+                else
+                {
+                    sentBytes = 0;
+                    Thread.SpinWait(HOST_BANDWIDTH_THROTTLE_ITERATIONS);
+                }
             }
         }
 

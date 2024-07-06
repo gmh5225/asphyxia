@@ -53,6 +53,11 @@ namespace asphyxia
         public const int SOCKET_SEND_ITERATIONS = 1;
 
         /// <summary>
+        ///     Socket send throttle
+        /// </summary>
+        public const int SOCKET_SEND_THROTTLE = 255;
+
+        /// <summary>
         ///     Socket receive iterations
         /// </summary>
         public const int SOCKET_RECEIVE_ITERATIONS = 1;
