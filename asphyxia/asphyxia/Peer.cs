@@ -217,7 +217,7 @@ namespace asphyxia
             if (_state != Connected)
                 return -1;
             _sendBuffer[0] = (byte)Data;
-            CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
+            CopyBlock(ref *(_sendBuffer + 1), ref buffer[offset], (uint)length);
             return SendInternal(_sendBuffer, length + 1);
         }
 

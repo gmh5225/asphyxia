@@ -28,7 +28,7 @@ namespace asphyxia
         /// <summary>
         ///     Socket buffer size
         /// </summary>
-        public const int SOCKET_BUFFER_SIZE = BUFFER_SIZE << 1;
+        public const int SOCKET_BUFFER_SIZE = MAX_PEERS * BUFFER_SIZE;
 
         /// <summary>
         ///     Buffer size
@@ -46,54 +46,14 @@ namespace asphyxia
         public const int TICK_INTERVAL = 1;
 
         /// <summary>
-        ///     Socket send iterations
+        ///     Host bandwidth throttle
         /// </summary>
-        public const int SOCKET_SEND_ITERATIONS = 1;
-
-        /// <summary>
-        ///     Socket send throttle
-        /// </summary>
-        public const int SOCKET_SEND_THROTTLE = MAX_SEND_EVENTS / (HOST_BANDWIDTH_THROTTLE_ITERATIONS << 1);
-
-        /// <summary>
-        ///     Socket receive throttle
-        /// </summary>
-        public const int SOCKET_RECEIVE_THROTTLE = MAX_RECEIVE_EVENTS / HOST_BANDWIDTH_THROTTLE_ITERATIONS;
-
-        /// <summary>
-        ///     Socket receive iterations
-        /// </summary>
-        public const int SOCKET_RECEIVE_ITERATIONS = 1;
-
-        /// <summary>
-        ///     Service iterations
-        /// </summary>
-        public const int SERVICE_ITERATIONS = 1;
-
-        /// <summary>
-        ///     Socket non-blocking timeout
-        /// </summary>
-        public const int SOCKET_POLL_TIMEOUT_MIN = 0;
-
-        /// <summary>
-        ///     Socket poll timeout increment
-        /// </summary>
-        public const int SOCKET_POLL_TIMEOUT_INCREMENT = 1;
-
-        /// <summary>
-        ///     Socket poll timeout
-        /// </summary>
-        public const int SOCKET_POLL_TIMEOUT_MAX = 10;
-
-        /// <summary>
-        ///     Host bandwidth throttle iterations
-        /// </summary>
-        public const int HOST_BANDWIDTH_THROTTLE_ITERATIONS = 100;
+        public const int HOST_BANDWIDTH_THROTTLE = 100;
 
         /// <summary>
         ///     Service throttle times
         /// </summary>
-        public const int SERVICE_THROTTLE_TIMES = 5000;
+        public const int SERVICE_THROTTLE_TIMES = 100;
 
         /// <summary>
         ///     Ping interval

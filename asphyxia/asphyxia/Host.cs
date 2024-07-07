@@ -87,11 +87,6 @@ namespace asphyxia
         private Peer? _peer;
 
         /// <summary>
-        ///     Poll timeout
-        /// </summary>
-        private int _pollTimeout;
-
-        /// <summary>
         ///     State lock
         /// </summary>
         private readonly object _lock = new();
@@ -138,7 +133,6 @@ namespace asphyxia
                 }
 
                 _peer = null;
-                _pollTimeout = SOCKET_POLL_TIMEOUT_MIN;
                 if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
                     return;
                 GC.SuppressFinalize(this);
@@ -163,6 +157,8 @@ namespace asphyxia
                     throw new InvalidOperationException("Host has created.");
                 if (maxPeers < 0 || maxPeers > MAX_PEERS)
                     throw new ArgumentOutOfRangeException(nameof(maxPeers));
+                if (maxPeers == 0)
+                    maxPeers = 1;
                 _socket.Create(SOCKET_BUFFER_SIZE, SOCKET_BUFFER_SIZE);
                 var localEndPoint = OSSupportsIPv6 ? NanoIPEndPoint.IPv6Any(port) : NanoIPEndPoint.Any(port);
                 try
@@ -175,7 +171,6 @@ namespace asphyxia
                     throw;
                 }
 
-                _socket.DontFragment = true;
                 _socket.Blocking = false;
                 _receiveBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _sendBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
@@ -277,76 +272,60 @@ namespace asphyxia
         /// </summary>
         public void Service()
         {
-            if (_socket.Poll(_pollTimeout))
+            var receivedTimes = 0;
+            var remoteEndPoint = _remoteEndPoint;
+            while (receivedTimes++ < MAX_RECEIVE_EVENTS && _socket.Poll(0) && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
             {
-                _pollTimeout = SOCKET_POLL_TIMEOUT_MIN;
-                var receivedTimes = 0;
-                var remoteEndPoint = _remoteEndPoint;
-                while (receivedTimes++ < MAX_RECEIVE_EVENTS && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
+                try
                 {
-                    try
+                    if (count < OVERHEAD)
                     {
-                        if (count < OVERHEAD)
+                        if (count == 8 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
                         {
-                            if (count == 8 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
+                            var conversationId = *(uint*)(_receiveBuffer + 4);
+                            if (_peer == null || _remoteEndPoint != remoteEndPoint)
                             {
-                                var conversationId = *(uint*)(_receiveBuffer + 4);
-                                if (_peer == null || _remoteEndPoint != remoteEndPoint)
-                                {
-                                    if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out _peer))
-                                        _peer.TryDisconnectNow(conversationId);
-                                }
-                                else
-                                {
+                                if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out _peer))
                                     _peer.TryDisconnectNow(conversationId);
-                                }
                             }
-
-                            continue;
-                        }
-
-                        if (_peer == null || _remoteEndPoint != remoteEndPoint)
-                        {
-                            var hashCode = _remoteEndPoint.GetHashCode();
-                            if (!_peers.TryGetValue(hashCode, out _peer))
+                            else
                             {
-                                if (count != 25 || _receiveBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
-                                    continue;
-                                var conversationId = *(uint*)_receiveBuffer;
-                                _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
-                                _peers[hashCode] = _peer;
-                                if (_sentinel == null)
-                                {
-                                    _sentinel = _peer;
-                                }
-                                else
-                                {
-                                    _sentinel.Previous = _peer;
-                                    _peer.Next = _sentinel;
-                                    _sentinel = _peer;
-                                }
+                                _peer.TryDisconnectNow(conversationId);
                             }
                         }
 
-                        _peer.Input(_receiveBuffer, count);
+                        continue;
                     }
-                    finally
-                    {
-                        remoteEndPoint = _remoteEndPoint;
-                        Thread.SpinWait(receivedTimes > 0 && receivedTimes % SOCKET_RECEIVE_THROTTLE == 0 ? HOST_BANDWIDTH_THROTTLE_ITERATIONS : SOCKET_RECEIVE_ITERATIONS);
-                    }
-                }
-            }
-            else
-            {
-                if (_pollTimeout != SOCKET_POLL_TIMEOUT_MAX)
-                {
-                    _pollTimeout += SOCKET_POLL_TIMEOUT_INCREMENT;
-                    if (_pollTimeout > SOCKET_POLL_TIMEOUT_MAX)
-                        _pollTimeout = SOCKET_POLL_TIMEOUT_MAX;
-                }
 
-                Thread.SpinWait(HOST_BANDWIDTH_THROTTLE_ITERATIONS * _pollTimeout);
+                    if (_peer == null || _remoteEndPoint != remoteEndPoint)
+                    {
+                        var hashCode = _remoteEndPoint.GetHashCode();
+                        if (!_peers.TryGetValue(hashCode, out _peer))
+                        {
+                            if (count != 25 || _receiveBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
+                                continue;
+                            var conversationId = *(uint*)_receiveBuffer;
+                            _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
+                            _peers[hashCode] = _peer;
+                            if (_sentinel == null)
+                            {
+                                _sentinel = _peer;
+                            }
+                            else
+                            {
+                                _sentinel.Previous = _peer;
+                                _peer.Next = _sentinel;
+                                _sentinel = _peer;
+                            }
+                        }
+                    }
+
+                    _peer.Input(_receiveBuffer, count);
+                }
+                finally
+                {
+                    remoteEndPoint = _remoteEndPoint;
+                }
             }
 
             var node = _sentinel;
@@ -362,13 +341,10 @@ namespace asphyxia
         /// </summary>
         public void Flush()
         {
-            var sentTimes = 0;
             while (_outgoingCommands.TryDequeue(out var outgoingCommand))
             {
-                sentTimes++;
                 _socket.Send(outgoingCommand.Data, outgoingCommand.Length, &outgoingCommand.IPEndPoint);
                 outgoingCommand.Dispose();
-                Thread.SpinWait(sentTimes > 0 && sentTimes % SOCKET_SEND_THROTTLE == 0 ? SOCKET_SEND_ITERATIONS : HOST_BANDWIDTH_THROTTLE_ITERATIONS);
             }
         }
 
