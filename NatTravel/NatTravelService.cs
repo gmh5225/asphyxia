@@ -86,12 +86,13 @@ namespace asphyxia
         {
             while (_state == 1)
             {
-                _host.Service();
-                while (_host.CheckEvents(out var networkEvent))
-                    _networkEvents.Enqueue(networkEvent);
                 while (_outgoings.TryDequeue(out var outgoing))
                     outgoing.Send();
                 _host.Flush();
+                _host.Service();
+                _host.Flush();
+                while (_host.CheckEvents(out var networkEvent))
+                    _networkEvents.Enqueue(networkEvent);
                 Thread.Sleep(1);
             }
 

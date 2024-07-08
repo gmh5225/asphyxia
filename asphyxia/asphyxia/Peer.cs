@@ -314,9 +314,9 @@ namespace asphyxia
         /// <summary>
         ///     Try disconnect now
         /// </summary>
-        internal void TryDisconnectNow(uint conv)
+        internal void TryDisconnectNow(uint conversationId)
         {
-            if (_kcp.ConversationId != conv || _state == Disconnected)
+            if (_kcp.ConversationId != conversationId || _state == Disconnected)
                 return;
             if (_state == Connected)
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
@@ -405,14 +405,19 @@ namespace asphyxia
         /// <param name="buffer">Receive buffer</param>
         internal void Service(byte* buffer)
         {
-            if (_lastReceiveTimestamp + PEER_TIMEOUT <= Current)
+            if (_kcp.State == -1)
+            {
+                DisconnectInternal();
+                return;
+            }
+
+            if (_lastReceiveTimestamp + RECEIVE_TIMEOUT <= Current)
             {
                 Timeout();
                 return;
             }
 
-            var serviceTimes = 0;
-            while (serviceTimes++ < SERVICE_THROTTLE_TIMES)
+            while (true)
             {
                 var received = _kcp.Receive(buffer, BUFFER_SIZE);
                 if (received < 0)

@@ -46,24 +46,14 @@ namespace asphyxia
         public const int TICK_INTERVAL = 1;
 
         /// <summary>
-        ///     Host bandwidth throttle
-        /// </summary>
-        public const int HOST_BANDWIDTH_THROTTLE = 100;
-
-        /// <summary>
-        ///     Service throttle times
-        /// </summary>
-        public const int SERVICE_THROTTLE_TIMES = 100;
-
-        /// <summary>
         ///     Ping interval
         /// </summary>
         public const int PING_INTERVAL = 500;
 
         /// <summary>
-        ///     Peer timeout
+        ///     Receive timeout
         /// </summary>
-        public const int PEER_TIMEOUT = 5000;
+        public const int RECEIVE_TIMEOUT = 5000;
 
         /// <summary>
         ///     No delay
@@ -78,6 +68,6 @@ namespace asphyxia
         /// <summary>
         ///     No congestion window
         /// </summary>
-        public const int NO_CONGESTION_WINDOW = 0;
+        public const int NO_CONGESTION_WINDOW = 1;
     }
 }

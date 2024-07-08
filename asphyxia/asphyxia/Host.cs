@@ -264,7 +264,7 @@ namespace asphyxia
         private void PingInternal(NanoIPEndPoint remoteEndPoint)
         {
             _sendBuffer[0] = (byte)Header.Ping;
-            _outgoingCommands.Enqueue(new OutgoingCommand(remoteEndPoint, _sendBuffer, 1));
+            Insert(new OutgoingCommand(remoteEndPoint, _sendBuffer, 1));
         }
 
         /// <summary>
@@ -272,9 +272,8 @@ namespace asphyxia
         /// </summary>
         public void Service()
         {
-            var receivedTimes = 0;
             var remoteEndPoint = _remoteEndPoint;
-            while (receivedTimes++ < MAX_RECEIVE_EVENTS && _socket.Poll(0) && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
+            while (_socket.Poll(0) && _socket.Receive(_receiveBuffer, BUFFER_SIZE, out var count, ref _remoteEndPoint))
             {
                 try
                 {
