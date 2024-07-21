@@ -115,6 +115,7 @@ namespace asphyxia
             _kcp = new Kcp(conversationId, this);
             _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE);
+            _kcp.SetMtu(MAXIMUM_TRANSMISSION_UNIT);
             var current = Current;
             _lastSendTimestamp = current;
             _lastReceiveTimestamp = current;
