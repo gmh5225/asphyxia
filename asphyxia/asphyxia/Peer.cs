@@ -27,7 +27,7 @@ namespace asphyxia
     /// <summary>
     ///     Peer
     /// </summary>
-    public sealed unsafe class Peer
+    public sealed unsafe class Peer : IKcpCallback
     {
         /// <summary>
         ///     Previous
@@ -65,6 +65,11 @@ namespace asphyxia
         private readonly byte* _sendBuffer;
 
         /// <summary>
+        ///     Buffer
+        /// </summary>
+        private readonly byte* _outputBuffer;
+
+        /// <summary>
         ///     Last send timestamp
         /// </summary>
         private uint _lastSendTimestamp;
@@ -85,6 +90,11 @@ namespace asphyxia
         private uint _nextUpdateTimestamp;
 
         /// <summary>
+        ///     Disconnecting
+        /// </summary>
+        private bool _disconnecting;
+
+        /// <summary>
         ///     Structure
         /// </summary>
         /// <param name="conversationId">ConversationId</param>
@@ -92,15 +102,17 @@ namespace asphyxia
         /// <param name="id">Id</param>
         /// <param name="ipEndPoint">IPEndPoint</param>
         /// <param name="sendBuffer">Buffer</param>
+        /// <param name="outputBuffer">Buffer</param>
         /// <param name="state">State</param>
-        internal Peer(uint conversationId, Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, PeerState state = PeerState.None)
+        internal Peer(uint conversationId, Host host, uint id, NanoIPEndPoint ipEndPoint, byte* sendBuffer, byte* outputBuffer, PeerState state = PeerState.None)
         {
             _host = host;
             Id = id;
             IPEndPoint = ipEndPoint;
             _sendBuffer = sendBuffer;
+            _outputBuffer = outputBuffer;
             _state = state;
-            _kcp = new Kcp(conversationId, Output);
+            _kcp = new Kcp(conversationId, this);
             _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE);
             var current = Current;
@@ -124,6 +136,13 @@ namespace asphyxia
         public int RoundTripTime => _kcp.RxSrtt;
 
         /// <summary>
+        ///     Output
+        /// </summary>
+        /// <param name="buffer">Buffer</param>
+        /// <param name="length">Length</param>
+        void IKcpCallback.Output(byte* buffer, int length) => Output(buffer, length);
+
+        /// <summary>
         ///     Input
         /// </summary>
         /// <param name="buffer">Buffer</param>
@@ -145,17 +164,7 @@ namespace asphyxia
         {
             _lastSendTimestamp = Current;
             _host.Insert(new OutgoingCommand(IPEndPoint, buffer, length));
-        }
-
-        /// <summary>
-        ///     Output
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <param name="length">Length</param>
-        private void DisconnectingOutput(byte* buffer, int length)
-        {
-            _host.Insert(new OutgoingCommand(IPEndPoint, buffer, length));
-            if (_kcp.SendQueueCount == 0)
+            if (_disconnecting && _kcp.SendQueueCount == 0)
             {
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
                 _state = Disconnected;
@@ -346,7 +355,7 @@ namespace asphyxia
         {
             _state = Disconnected;
             var conv = _kcp.ConversationId;
-            _kcp.Flush();
+            _kcp.Flush(_outputBuffer);
             _kcp.Dispose();
             _sendBuffer[0] = (byte)Header.Disconnect;
             _sendBuffer[1] = (byte)DisconnectAcknowledge;
@@ -470,7 +479,7 @@ namespace asphyxia
                             if (_state != Connected)
                                 goto error;
                             _state = Disconnected;
-                            _kcp.SetOutput(DisconnectingOutput);
+                            _disconnecting = true;
                             buffer[0] = (byte)DisconnectAcknowledge;
                             SendInternal(buffer, 1);
                             continue;
@@ -499,7 +508,7 @@ namespace asphyxia
 
             if (current >= _nextUpdateTimestamp)
             {
-                _kcp.Update(current);
+                _kcp.Update(current, _outputBuffer);
                 if (_kcp.IsSet)
                     _nextUpdateTimestamp = _kcp.Check(current);
             }

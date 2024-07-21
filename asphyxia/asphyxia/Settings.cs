@@ -3,6 +3,8 @@
 // Copyright © 2024 怨靈. All rights reserved.
 //------------------------------------------------------------
 
+using static KCP.KCPBASIC;
+
 namespace asphyxia
 {
     /// <summary>
@@ -54,6 +56,16 @@ namespace asphyxia
         ///     Receive timeout
         /// </summary>
         public const int RECEIVE_TIMEOUT = 5000;
+
+        /// <summary>
+        ///     Maximum transmission unit
+        /// </summary>
+        public const int MAXIMUM_TRANSMISSION_UNIT = 1400;
+
+        /// <summary>
+        ///     Output buffer size
+        /// </summary>
+        public const int OUTPUT_BUFFER_SIZE = (int)((MAXIMUM_TRANSMISSION_UNIT + OVERHEAD) * 3);
 
         /// <summary>
         ///     No delay

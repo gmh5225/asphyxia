@@ -42,6 +42,11 @@ namespace asphyxia
         private byte* _sendBuffer;
 
         /// <summary>
+        ///     Buffer
+        /// </summary>
+        private byte* _outputBuffer;
+
+        /// <summary>
         ///     Max peers
         /// </summary>
         private int _maxPeers;
@@ -118,6 +123,7 @@ namespace asphyxia
                 _socket.Close();
                 FreeHGlobal((nint)_receiveBuffer);
                 FreeHGlobal((nint)_sendBuffer);
+                FreeHGlobal((nint)_outputBuffer);
                 _maxPeers = 0;
                 _id = 0;
                 _idPool.Clear();
@@ -174,6 +180,7 @@ namespace asphyxia
                 _socket.Blocking = false;
                 _receiveBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
                 _sendBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
+                _outputBuffer = (byte*)AllocHGlobal(OUTPUT_BUFFER_SIZE);
                 _maxPeers = maxPeers;
                 if (Interlocked.CompareExchange(ref _disposed, 0, 1) != 1)
                     return;
@@ -215,7 +222,7 @@ namespace asphyxia
             var buffer = stackalloc byte[4];
             RandomNumberGenerator.Fill(new Span<byte>(buffer, 4));
             var conversationId = *(uint*)buffer;
-            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, PeerState.Connecting);
+            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, _outputBuffer, PeerState.Connecting);
             _peers[hashCode] = peer;
             _peer ??= peer;
             if (_sentinel == null)
@@ -304,7 +311,7 @@ namespace asphyxia
                             if (count != 25 || _receiveBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                                 continue;
                             var conversationId = *(uint*)_receiveBuffer;
-                            _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer);
+                            _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _outputBuffer);
                             _peers[hashCode] = _peer;
                             if (_sentinel == null)
                             {
