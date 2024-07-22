@@ -150,10 +150,12 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal void Input(byte* buffer, int length)
         {
+            if (_kcp.Input(buffer, length) != 0)
+                return;
             _nextUpdateTimestamp = 0;
-            if (_state == Connected)
-                _lastReceiveTimestamp = Current;
-            _kcp.Input(buffer, length);
+            if (_state != Connected)
+                return;
+            _lastReceiveTimestamp = Current;
         }
 
         /// <summary>
@@ -362,7 +364,7 @@ namespace asphyxia
             _sendBuffer[1] = (byte)DisconnectAcknowledge;
             _sendBuffer[2] = (byte)Header.Disconnect;
             _sendBuffer[3] = (byte)DisconnectAcknowledge;
-            Write(_sendBuffer + 4, conv);
+            *(uint*)(_sendBuffer + 4) = conv;
             Output(_sendBuffer, 8);
             _host.Remove(IPEndPoint.GetHashCode(), this);
         }

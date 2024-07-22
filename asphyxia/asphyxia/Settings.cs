@@ -65,7 +65,7 @@ namespace asphyxia
         /// <summary>
         ///     Output buffer size
         /// </summary>
-        public const int OUTPUT_BUFFER_SIZE = (int)((MAXIMUM_TRANSMISSION_UNIT + OVERHEAD) * 3);
+        public const int OUTPUT_BUFFER_SIZE = (int)(REVERSED_HEAD + (MAXIMUM_TRANSMISSION_UNIT + OVERHEAD) * 3);
 
         /// <summary>
         ///     No delay

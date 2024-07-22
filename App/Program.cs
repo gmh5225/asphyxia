@@ -9,7 +9,7 @@ namespace asphyxia
 {
     public sealed class Program
     {
-        private static void Main() => StartNatTravelService();
+        private static void Main() => TestConnection();
 
         private static void StartNatTravelService()
         {
@@ -114,7 +114,15 @@ namespace asphyxia
                     if (j == 10)
                         peer?.Disconnect();
                     else if (j < 10)
-                        peer2?.Send(Encoding.UTF8.GetBytes($"client: {j}"));
+                    {
+                        if (peer2 != null)
+                        {
+                            for (var k = 0; k < 2; ++k)
+                            {
+                                peer2.Send(Encoding.UTF8.GetBytes($"client: {j}"));
+                            }
+                        }
+                    }
                 }
 
                 a.Flush();
