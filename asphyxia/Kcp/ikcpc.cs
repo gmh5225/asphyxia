@@ -129,12 +129,12 @@ namespace KCP
 
         private static void ikcp_segment_delete(IKCPCB* kcp, IKCPSEG* seg) => ikcp_free(seg);
 
-        private static void ikcp_output(IKcpCallback output, void* data, int size)
+        private static void ikcp_output(IKcpCallback output, byte* data, int size)
         {
             if (size == 0)
                 return;
             size += (int)REVERSED_HEAD;
-            output.Output((byte*)data - (int)REVERSED_HEAD, size);
+            output.Output(data - (int)REVERSED_HEAD, size);
         }
 
         public static IKCPCB* ikcp_create(uint conv)

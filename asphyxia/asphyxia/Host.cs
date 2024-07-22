@@ -284,7 +284,7 @@ namespace asphyxia
             {
                 try
                 {
-                    if (count < OVERHEAD)
+                    if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
                     {
                         if (count == 8 && _receiveBuffer[0] == (byte)Header.Disconnect && _receiveBuffer[1] == (byte)Header.DisconnectAcknowledge && _receiveBuffer[2] == (byte)Header.Disconnect && _receiveBuffer[3] == (byte)Header.DisconnectAcknowledge)
                         {
