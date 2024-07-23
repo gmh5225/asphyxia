@@ -4,7 +4,7 @@
 //------------------------------------------------------------
 
 using System.Collections.Concurrent;
-using NanoSockets;
+using System.Net;
 using static asphyxia.Settings;
 using static System.Runtime.CompilerServices.Unsafe;
 
@@ -28,7 +28,7 @@ namespace asphyxia
         /// <summary>
         ///     Peers
         /// </summary>
-        private readonly ConcurrentDictionary<NanoIPEndPoint, Peer> _peers = new(Math.Min(SERVICE_THREAD_COUNT, Environment.ProcessorCount), MAX_PEERS);
+        private readonly ConcurrentDictionary<IPEndPoint, Peer> _peers = new(Math.Min(SERVICE_THREAD_COUNT, Environment.ProcessorCount), MAX_PEERS);
 
         /// <summary>
         ///     Outgoing commands
@@ -128,19 +128,26 @@ namespace asphyxia
                         case NetworkEventType.Connect:
                             Console.WriteLine($"Connected: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}]");
                             _peers[networkEvent.Peer.IPEndPoint] = networkEvent.Peer;
-                            var dataPacket = DataPacket.Create(sizeof(NanoIPEndPoint) + 1);
-                            Write((void*)dataPacket.Data, networkEvent.Peer.IPEndPoint);
+                            var dataPacket = networkEvent.Peer.IPEndPoint.CreateDataPacket(1);
+                            ((byte*)dataPacket.Data)[0] = 0;
                             _outgoings.Enqueue(new NetworkOutgoing(networkEvent.Peer, dataPacket));
                             continue;
                         case NetworkEventType.Data:
                             var packet = networkEvent.Packet;
-                            if (packet.Length != sizeof(NanoIPEndPoint))
+                            var span = packet.AsSpan();
+                            IPAddress address;
+                            try
+                            {
+                                address = new IPAddress(span[..^4]);
+                            }
+                            catch
                             {
                                 packet.Dispose();
-                                continue;
+                                break;
                             }
 
-                            var ipEndPoint = Read<NanoIPEndPoint>((void*)packet.Data);
+                            var port = ReadUnaligned<int>(ref span[^4]);
+                            var ipEndPoint = new IPEndPoint(address, port);
                             if (!_peers.TryGetValue(ipEndPoint, out var peer) || networkEvent.Peer == peer)
                             {
                                 packet.Dispose();
@@ -148,7 +155,9 @@ namespace asphyxia
                             }
 
                             Console.WriteLine($"Data: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}] to [{peer.Id}] [{peer.IPEndPoint}]");
-                            Write((void*)packet.Data, networkEvent.Peer.IPEndPoint);
+                            packet.Dispose();
+                            packet = networkEvent.Peer.IPEndPoint.CreateDataPacket(1);
+                            ((byte*)packet.Data)[0] = 1;
                             var outgoing = new NetworkOutgoing(peer, packet);
                             _outgoings.Enqueue(outgoing);
                             continue;

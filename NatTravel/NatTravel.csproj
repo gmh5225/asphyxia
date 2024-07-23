@@ -12,10 +12,4 @@
       <ProjectReference Include="..\asphyxia\asphyxia.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Reference Include="Nanosockets-CSharp">
-        <HintPath>..\..\Nanosockets-CSharp\Nanosockets-CSharp\bin\Release\net8.0\Nanosockets-CSharp.dll</HintPath>
-      </Reference>
-    </ItemGroup>
-
 </Project>
