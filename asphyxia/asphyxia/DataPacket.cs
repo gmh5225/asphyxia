@@ -183,7 +183,7 @@ namespace asphyxia
         public static DataPacket Create(byte[] src, int offset, int length)
         {
             var data = AllocHGlobal(length);
-            CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
+            CopyBlock(ref *(byte*)data, ref src[offset], (uint)length);
             return new DataPacket(data, length);
         }
 
@@ -274,7 +274,7 @@ namespace asphyxia
         /// </summary>
         /// <param name="dst">Destination</param>
         /// <param name="length">Length</param>
-        public void CopyTo(byte[] dst, int length) => CopyBlock(ref dst[0], ref *(byte*)Data, (uint)Length);
+        public void CopyTo(byte[] dst, int length) => CopyBlock(ref dst[0], ref *(byte*)Data, (uint)length);
 
         /// <summary>
         ///     CopyTo
@@ -282,7 +282,7 @@ namespace asphyxia
         /// <param name="dst">Destination</param>
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
-        public void CopyTo(byte[] dst, int offset, int length) => CopyBlock(ref dst[0], ref *(byte*)Data, (uint)Length);
+        public void CopyTo(byte[] dst, int offset, int length) => CopyBlock(ref dst[0], ref *((byte*)Data + offset), (uint)length);
 
         /// <summary>
         ///     CopyTo
