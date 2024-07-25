@@ -18,12 +18,15 @@ using static asphyxia.Settings;
 using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
 
+#pragma warning disable CS0162
 #pragma warning disable CS8600
 #pragma warning disable CS8603
 #pragma warning disable CS8618
 #pragma warning disable CS8625
 #pragma warning disable CS8632
 
+// ReSharper disable RedundantIfElseBlock
+// ReSharper disable HeuristicUnreachableCode
 // ReSharper disable PossibleNullReferenceException
 
 namespace asphyxia
@@ -310,7 +313,7 @@ namespace asphyxia
             if (remoteEndPoint.AddressFamily != _socket.AddressFamily)
                 return;
             _sendBuffer[0] = (byte)Header.Ping;
-            Insert(new OutgoingCommand(remoteEndPoint, _sendBuffer, 1));
+            Insert(remoteEndPoint, _sendBuffer, 1);
         }
 
         /// <summary>
@@ -378,6 +381,8 @@ namespace asphyxia
                     }
 
                     _peer.Input(_socketBuffer, count);
+                    if (!SOCKET_BATCH_IO)
+                        _peer.Service(_receiveBuffer);
                 }
                 finally
                 {
@@ -385,11 +390,14 @@ namespace asphyxia
                 }
             }
 
-            var node = _sentinel;
-            while (node != null)
+            if (SOCKET_BATCH_IO)
             {
-                node.Service(_receiveBuffer);
-                node = node.Next;
+                var node = _sentinel;
+                while (node != null)
+                {
+                    node.Service(_receiveBuffer);
+                    node = node.Next;
+                }
             }
         }
 
@@ -398,19 +406,32 @@ namespace asphyxia
         /// </summary>
         public void Flush()
         {
-            while (_outgoingCommands.TryDequeue(out var outgoingCommand))
+            if (SOCKET_BATCH_IO)
             {
-                outgoingCommand.CopyTo(_socketBuffer);
-                try
+                while (_outgoingCommands.TryDequeue(out var outgoingCommand))
                 {
-                    _socket.SendTo(_socketBuffer, 0, outgoingCommand.Length, SocketFlags.None, outgoingCommand.IPEndPoint);
+#if NET6_0_OR_GREATER
+                    try
+                    {
+                        _socket.SendTo(new Span<byte>(outgoingCommand.Data, outgoingCommand.Length), SocketFlags.None, outgoingCommand.IPEndPoint);
+                    }
+                    catch
+                    {
+                        //
+                    }
+#else
+                    outgoingCommand.CopyTo(_socketBuffer);
+                    try
+                    {
+                        _socket.SendTo(_socketBuffer, 0, outgoingCommand.Length, SocketFlags.None, outgoingCommand.IPEndPoint);
+                    }
+                    catch
+                    {
+                        //
+                    }
+#endif
+                    outgoingCommand.Dispose();
                 }
-                catch
-                {
-                    //
-                }
-
-                outgoingCommand.Dispose();
             }
         }
 
@@ -423,8 +444,39 @@ namespace asphyxia
         /// <summary>
         ///     Insert
         /// </summary>
-        /// <param name="outgoingCommand">OutgoingCommand</param>
-        internal void Insert(in OutgoingCommand outgoingCommand) => _outgoingCommands.Enqueue(outgoingCommand);
+        /// <param name="endPoint">IPEndPoint</param>
+        /// <param name="buffer">Buffer</param>
+        /// <param name="length">Length</param>
+        internal void Insert(EndPoint endPoint, byte* buffer, int length)
+        {
+            if (SOCKET_BATCH_IO)
+            {
+                _outgoingCommands.Enqueue(new OutgoingCommand(endPoint, buffer, length));
+            }
+            else
+            {
+#if NET6_0_OR_GREATER
+                try
+                {
+                    _socket.SendTo(new Span<byte>(buffer, length), SocketFlags.None, endPoint);
+                }
+                catch
+                {
+                    //
+                }
+#else
+                Unsafe.CopyBlock(ref _sendBuffer[0], ref *buffer, (uint)length);
+                try
+                {
+                    _socket.SendTo(_socketBuffer, 0, length, SocketFlags.None, endPoint);
+                }
+                catch
+                {
+                    //
+                }
+#endif
+            }
+        }
 
         /// <summary>
         ///     Remove

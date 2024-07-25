@@ -166,7 +166,7 @@ namespace asphyxia
         private void Output(byte* buffer, int length)
         {
             _lastSendTimestamp = Current;
-            _host.Insert(new OutgoingCommand(IPEndPoint, buffer, length));
+            _host.Insert(IPEndPoint, buffer, length);
             if (_disconnecting && _kcp.SendQueueCount == 0)
             {
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
