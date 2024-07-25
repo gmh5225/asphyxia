@@ -155,7 +155,8 @@ namespace asphyxia
         /// </summary>
         /// <param name="maxPeers">Max peers</param>
         /// <param name="port">Port</param>
-        public void Create(int maxPeers, ushort port = 0)
+        /// <param name="ipv6">DualMode</param>
+        public void Create(int maxPeers, ushort port = 0, bool ipv6 = false)
         {
             lock (_lock)
             {
@@ -166,7 +167,9 @@ namespace asphyxia
                 if (maxPeers == 0)
                     maxPeers = 1;
                 _socket.Create(SOCKET_BUFFER_SIZE, SOCKET_BUFFER_SIZE);
-                var localEndPoint = OSSupportsIPv6 ? NanoIPEndPoint.IPv6Any(port) : NanoIPEndPoint.Any(port);
+                if (!OSSupportsIPv6)
+                    ipv6 = false;
+                var localEndPoint = ipv6 ? NanoIPEndPoint.IPv6Any(port) : NanoIPEndPoint.Any(port);
                 try
                 {
                     _socket.Bind(ref localEndPoint);
