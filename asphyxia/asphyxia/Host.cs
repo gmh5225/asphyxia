@@ -15,8 +15,12 @@ using static asphyxia.Settings;
 using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
 
+// ReSharper disable RedundantIfElseBlock
+
+#pragma warning disable CS0162
 #pragma warning disable CS8632
 
+// ReSharper disable HeuristicUnreachableCode
 // ReSharper disable PossibleNullReferenceException
 
 namespace asphyxia
@@ -274,7 +278,7 @@ namespace asphyxia
         private void PingInternal(NanoIPEndPoint remoteEndPoint)
         {
             _sendBuffer[0] = (byte)Header.Ping;
-            Insert(new OutgoingCommand(remoteEndPoint, _sendBuffer, 1));
+            Insert(remoteEndPoint, _sendBuffer, 1);
         }
 
         /// <summary>
@@ -330,6 +334,8 @@ namespace asphyxia
                     }
 
                     _peer.Input(_receiveBuffer, count);
+                    if (!SOCKET_BATCH_IO)
+                        _peer.Service(_receiveBuffer);
                 }
                 finally
                 {
@@ -337,11 +343,14 @@ namespace asphyxia
                 }
             }
 
-            var node = _sentinel;
-            while (node != null)
+            if (SOCKET_BATCH_IO)
             {
-                node.Service(_receiveBuffer);
-                node = node.Next;
+                var node = _sentinel;
+                while (node != null)
+                {
+                    node.Service(_receiveBuffer);
+                    node = node.Next;
+                }
             }
         }
 
@@ -350,10 +359,13 @@ namespace asphyxia
         /// </summary>
         public void Flush()
         {
-            while (_outgoingCommands.TryDequeue(out var outgoingCommand))
+            if (SOCKET_BATCH_IO)
             {
-                _socket.Send(outgoingCommand.Data, outgoingCommand.Length, &outgoingCommand.IPEndPoint);
-                outgoingCommand.Dispose();
+                while (_outgoingCommands.TryDequeue(out var outgoingCommand))
+                {
+                    _socket.Send(outgoingCommand.Data, outgoingCommand.Length, &outgoingCommand.IPEndPoint);
+                    outgoingCommand.Dispose();
+                }
             }
         }
 
@@ -366,8 +378,16 @@ namespace asphyxia
         /// <summary>
         ///     Insert
         /// </summary>
-        /// <param name="outgoingCommand">OutgoingCommand</param>
-        internal void Insert(in OutgoingCommand outgoingCommand) => _outgoingCommands.Enqueue(outgoingCommand);
+        /// <param name="endPoint">IPEndPoint</param>
+        /// <param name="buffer">Buffer</param>
+        /// <param name="length">Length</param>
+        internal void Insert(NanoIPEndPoint endPoint, byte* buffer, int length)
+        {
+            if (SOCKET_BATCH_IO)
+                _outgoingCommands.Enqueue(new OutgoingCommand(endPoint, buffer, length));
+            else
+                _socket.Send(buffer, length, &endPoint);
+        }
 
         /// <summary>
         ///     Remove

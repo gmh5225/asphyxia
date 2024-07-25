@@ -15,6 +15,12 @@ namespace asphyxia
     public static class Settings
     {
         /// <summary>
+        ///     Socket batch receive/send
+        ///     TODO: If the network bandwidth is relatively small, set it to false.
+        /// </summary>
+        public const bool SOCKET_BATCH_IO = false;
+
+        /// <summary>
         ///     Max peers
         /// </summary>
         public const int MAX_PEERS = 4096;
