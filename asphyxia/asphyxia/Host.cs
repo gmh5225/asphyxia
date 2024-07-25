@@ -213,8 +213,8 @@ namespace asphyxia
                 }
 
                 _socket.Blocking = false;
-                _receiveBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
-                _sendBuffer = (byte*)AllocHGlobal(BUFFER_SIZE);
+                _receiveBuffer = (byte*)AllocHGlobal(MAX_MESSAGE_SIZE);
+                _sendBuffer = (byte*)AllocHGlobal(MAX_MESSAGE_SIZE);
                 _outputBuffer = (byte*)AllocHGlobal(OUTPUT_BUFFER_SIZE);
                 _maxPeers = maxPeers;
                 if (Interlocked.CompareExchange(ref _disposed, 0, 1) != 1)

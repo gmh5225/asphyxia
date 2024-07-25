@@ -5,6 +5,8 @@
 
 using static KCP.KCPBASIC;
 
+// ReSharper disable HeuristicUnreachableCode
+
 namespace asphyxia
 {
     /// <summary>
@@ -66,6 +68,16 @@ namespace asphyxia
         ///     Output buffer size
         /// </summary>
         public const int OUTPUT_BUFFER_SIZE = (int)(REVERSED_HEAD + (MAXIMUM_TRANSMISSION_UNIT + OVERHEAD) * 3);
+
+        /// <summary>
+        ///     Reversed size
+        /// </summary>
+        public const int REVERSED_SIZE = (int)REVERSED_HEAD + sizeof(Header);
+
+        /// <summary>
+        ///     Max message size
+        /// </summary>
+        public const int MAX_MESSAGE_SIZE = WINDOW_SIZE < (int)FRG_LIMIT ? (MAXIMUM_TRANSMISSION_UNIT - (int)OVERHEAD - REVERSED_SIZE) * (WINDOW_SIZE - 1) - 1 : (MAXIMUM_TRANSMISSION_UNIT - (int)OVERHEAD - REVERSED_SIZE) * ((int)FRG_LIMIT - 1) - 1;
 
         /// <summary>
         ///     No delay
