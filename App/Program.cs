@@ -9,7 +9,7 @@ namespace asphyxia
 {
     public sealed class Program
     {
-        private static void Main() => TestConnection();
+        private static void Main() => StartNatTravelService();
 
         private static void StartNatTravelService()
         {

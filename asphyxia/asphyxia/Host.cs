@@ -335,8 +335,6 @@ namespace asphyxia
                 {
                     if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
                     {
-                        if (count <= 0)
-                            break;
                         if (count == 8 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge && _socketBuffer[2] == (byte)Header.Disconnect && _socketBuffer[3] == (byte)Header.DisconnectAcknowledge)
                         {
                             var conversationId = ReadUnaligned<uint>(ref _socketBuffer[4]);
