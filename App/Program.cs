@@ -9,7 +9,7 @@ namespace asphyxia
 {
     public sealed class Program
     {
-        private static void Main() => StartNatTravelService();
+        private static void Main() => TestConnection();
 
         private static void StartNatTravelService()
         {
@@ -59,7 +59,6 @@ namespace asphyxia
                             connected2 = true;
                             peer2 = networkEvent.Peer;
                             a.Service();
-                            a.Flush();
                             Console.WriteLine("Server Connect: " + networkEvent.Peer.Id);
                             break;
                         case NetworkEventType.Data:
@@ -124,9 +123,6 @@ namespace asphyxia
                         }
                     }
                 }
-
-                a.Flush();
-                b.Flush();
             }
         }
     }

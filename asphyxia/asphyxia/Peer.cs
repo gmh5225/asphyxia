@@ -60,14 +60,14 @@ namespace asphyxia
         private readonly Kcp _kcp;
 
         /// <summary>
-        ///     Buffer
+        ///     Send buffer
         /// </summary>
         private readonly byte* _sendBuffer;
 
         /// <summary>
-        ///     Buffer
+        ///     Flush buffer
         /// </summary>
-        private readonly byte* _outputBuffer;
+        private readonly byte* _flushBuffer;
 
         /// <summary>
         ///     Last send timestamp
@@ -101,21 +101,21 @@ namespace asphyxia
         /// <param name="host">Host</param>
         /// <param name="id">Id</param>
         /// <param name="ipEndPoint">IPEndPoint</param>
-        /// <param name="sendBuffer">Buffer</param>
-        /// <param name="outputBuffer">Buffer</param>
+        /// <param name="sendBuffer">Send buffer</param>
+        /// <param name="flushBuffer">Flush buffer</param>
         /// <param name="state">State</param>
-        internal Peer(uint conversationId, Host host, uint id, EndPoint ipEndPoint, byte* sendBuffer, byte* outputBuffer, PeerState state = PeerState.None)
+        internal Peer(uint conversationId, Host host, uint id, EndPoint ipEndPoint, byte* sendBuffer, byte* flushBuffer, PeerState state = PeerState.None)
         {
             _host = host;
             Id = id;
             IPEndPoint = (IPEndPoint)ipEndPoint;
             _sendBuffer = sendBuffer;
-            _outputBuffer = outputBuffer;
+            _flushBuffer = flushBuffer;
             _state = state;
             _kcp = new Kcp(conversationId, this);
-            _kcp.SetNoDelay(NO_DELAY, TICK_INTERVAL, FAST_RESEND, NO_CONGESTION_WINDOW);
-            _kcp.SetWindowSize(WINDOW_SIZE, WINDOW_SIZE);
-            _kcp.SetMtu(MAXIMUM_TRANSMISSION_UNIT);
+            _kcp.SetNoDelay(KCP_NO_DELAY, KCP_FLUSH_INTERVAL, KCP_FAST_RESEND, KCP_NO_CONGESTION_WINDOW);
+            _kcp.SetWindowSize(KCP_WINDOW_SIZE, KCP_WINDOW_SIZE);
+            _kcp.SetMtu(KCP_MAXIMUM_TRANSMISSION_UNIT);
             var current = Current;
             _lastSendTimestamp = current;
             _lastReceiveTimestamp = current;
@@ -358,7 +358,7 @@ namespace asphyxia
         {
             _state = Disconnected;
             var conv = _kcp.ConversationId;
-            _kcp.Flush(_outputBuffer);
+            _kcp.Flush(_flushBuffer);
             _kcp.Dispose();
             _sendBuffer[0] = (byte)Header.Disconnect;
             _sendBuffer[1] = (byte)DisconnectAcknowledge;
@@ -423,7 +423,7 @@ namespace asphyxia
                 return;
             }
 
-            if (_lastReceiveTimestamp + RECEIVE_TIMEOUT <= Current)
+            if (_lastReceiveTimestamp + PEER_RECEIVE_TIMEOUT <= Current)
             {
                 Timeout();
                 return;
@@ -431,7 +431,7 @@ namespace asphyxia
 
             while (true)
             {
-                var received = _kcp.Receive(buffer, BUFFER_SIZE);
+                var received = _kcp.Receive(buffer, KCP_MESSAGE_SIZE);
                 if (received < 0)
                 {
                     if (received != -1)
@@ -502,7 +502,7 @@ namespace asphyxia
             }
 
             var current = Current;
-            if (_state == Connected && _lastSendTimestamp + PING_INTERVAL <= current)
+            if (_state == Connected && _lastSendTimestamp + PEER_PING_INTERVAL <= current)
             {
                 _lastSendTimestamp = current;
                 buffer[0] = (byte)Ping;
@@ -511,7 +511,7 @@ namespace asphyxia
 
             if (current >= _nextUpdateTimestamp)
             {
-                _kcp.Update(current, _outputBuffer);
+                _kcp.Update(current, _flushBuffer);
                 if (_kcp.IsSet)
                     _nextUpdateTimestamp = _kcp.Check(current);
             }

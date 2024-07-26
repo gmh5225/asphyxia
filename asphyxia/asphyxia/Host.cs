@@ -18,6 +18,7 @@ using static asphyxia.Settings;
 using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
 
+#pragma warning disable CA1816
 #pragma warning disable CS0162
 #pragma warning disable CS8600
 #pragma warning disable CS8603
@@ -42,24 +43,24 @@ namespace asphyxia
         private Socket _socket;
 
         /// <summary>
-        ///     Buffer
+        ///     Socket buffer
         /// </summary>
-        private readonly byte[] _socketBuffer = new byte[BUFFER_SIZE];
+        private readonly byte[] _socketBuffer = new byte[SOCKET_BUFFER_SIZE];
 
         /// <summary>
-        ///     Buffer
+        ///     Receive buffer
         /// </summary>
         private byte* _receiveBuffer;
 
         /// <summary>
-        ///     Buffer
+        ///     Send buffer
         /// </summary>
         private byte* _sendBuffer;
 
         /// <summary>
-        ///     Buffer
+        ///     Flush buffer
         /// </summary>
-        private byte* _outputBuffer;
+        private byte* _flushBuffer;
 
         /// <summary>
         ///     Max peers
@@ -74,12 +75,7 @@ namespace asphyxia
         /// <summary>
         ///     Id pool
         /// </summary>
-        private readonly Queue<uint> _idPool = new(MAX_PEERS);
-
-        /// <summary>
-        ///     Peers
-        /// </summary>
-        private readonly Dictionary<int, Peer> _peers = new(MAX_PEERS);
+        private readonly Queue<uint> _idPool = new();
 
         /// <summary>
         ///     Sentinel
@@ -87,14 +83,14 @@ namespace asphyxia
         private Peer? _sentinel;
 
         /// <summary>
-        ///     Outgoing commands
+        ///     Peers
         /// </summary>
-        private readonly Queue<OutgoingCommand> _outgoingCommands = new(MAX_SEND_EVENTS);
+        private readonly Dictionary<int, Peer> _peers = new();
 
         /// <summary>
         ///     NetworkEvents
         /// </summary>
-        private readonly Queue<NetworkEvent> _networkEvents = new(MAX_RECEIVE_EVENTS);
+        private readonly Queue<NetworkEvent> _networkEvents = new();
 
         /// <summary>
         ///     Remote endPoint
@@ -110,11 +106,6 @@ namespace asphyxia
         ///     State lock
         /// </summary>
         private readonly object _lock = new();
-
-        /// <summary>
-        ///     Disposed
-        /// </summary>
-        private int _disposed;
 
         /// <summary>
         ///     Is created
@@ -139,14 +130,12 @@ namespace asphyxia
                 _socket = null;
                 FreeHGlobal((nint)_receiveBuffer);
                 FreeHGlobal((nint)_sendBuffer);
-                FreeHGlobal((nint)_outputBuffer);
+                FreeHGlobal((nint)_flushBuffer);
                 _maxPeers = 0;
                 _id = 0;
                 _idPool.Clear();
                 _peers.Clear();
                 _sentinel = null;
-                while (_outgoingCommands.TryDequeue(out var outgoingCommand))
-                    outgoingCommand.Dispose();
                 while (_networkEvents.TryDequeue(out var networkEvent))
                 {
                     if (networkEvent.EventType != NetworkEventType.Data)
@@ -155,9 +144,6 @@ namespace asphyxia
                 }
 
                 _peer = null;
-                if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
-                    return;
-                GC.SuppressFinalize(this);
             }
         }
 
@@ -178,9 +164,7 @@ namespace asphyxia
             {
                 if (IsSet)
                     throw new InvalidOperationException("Host has created.");
-                if (maxPeers < 0 || maxPeers > MAX_PEERS)
-                    throw new ArgumentOutOfRangeException(nameof(maxPeers));
-                if (maxPeers == 0)
+                if (maxPeers <= 0)
                     maxPeers = 1;
                 if (!OSSupportsIPv6)
                     ipv6 = false;
@@ -191,19 +175,13 @@ namespace asphyxia
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                         _socket.IOControl(-1744830452, new byte[1], null);
                     localEndPoint = new IPEndPoint(IPAddress.IPv6Any, port);
-                    if (_remoteEndPoint == null || _remoteEndPoint.AddressFamily != AddressFamily.InterNetworkV6)
-                        _remoteEndPoint = new IPEndPoint(IPAddress.IPv6Any, 0);
                 }
                 else
                 {
                     _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
                     localEndPoint = new IPEndPoint(IPAddress.Any, port);
-                    if (_remoteEndPoint == null || _remoteEndPoint.AddressFamily != AddressFamily.InterNetwork)
-                        _remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
                 }
 
-                _socket.SendBufferSize = SOCKET_BUFFER_SIZE;
-                _socket.ReceiveBufferSize = SOCKET_BUFFER_SIZE;
                 try
                 {
                     _socket.Bind(localEndPoint);
@@ -215,14 +193,31 @@ namespace asphyxia
                     throw;
                 }
 
+                if (ipv6)
+                {
+                    if (_remoteEndPoint == null || _remoteEndPoint.AddressFamily != AddressFamily.InterNetworkV6)
+                        _remoteEndPoint = new IPEndPoint(IPAddress.IPv6Any, 0);
+                }
+                else
+                {
+                    if (_remoteEndPoint == null || _remoteEndPoint.AddressFamily != AddressFamily.InterNetwork)
+                        _remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
+                }
+
+                var socketBufferSize = maxPeers * SOCKET_BUFFER_SIZE;
+                if (socketBufferSize < 8388608)
+                    socketBufferSize = 8388608;
+                _socket.SendBufferSize = socketBufferSize;
+                _socket.ReceiveBufferSize = socketBufferSize;
                 _socket.Blocking = false;
-                _receiveBuffer = (byte*)AllocHGlobal(MAX_MESSAGE_SIZE);
-                _sendBuffer = (byte*)AllocHGlobal(MAX_MESSAGE_SIZE);
-                _outputBuffer = (byte*)AllocHGlobal(OUTPUT_BUFFER_SIZE);
+                _idPool.EnsureCapacity(maxPeers);
+                _peers.EnsureCapacity(maxPeers);
+                var maxReceiveEvents = maxPeers << 1;
+                _networkEvents.EnsureCapacity(maxReceiveEvents);
+                _receiveBuffer = (byte*)AllocHGlobal(KCP_MESSAGE_SIZE);
+                _sendBuffer = (byte*)AllocHGlobal(KCP_MESSAGE_SIZE);
+                _flushBuffer = (byte*)AllocHGlobal(KCP_FLUSH_BUFFER_SIZE);
                 _maxPeers = maxPeers;
-                if (Interlocked.CompareExchange(ref _disposed, 0, 1) != 1)
-                    return;
-                GC.ReRegisterForFinalize(this);
             }
         }
 
@@ -262,7 +257,7 @@ namespace asphyxia
             var buffer = stackalloc byte[4];
             RandomNumberGenerator.Fill(new Span<byte>(buffer, 4));
             var conversationId = *(uint*)buffer;
-            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, _outputBuffer, PeerState.Connecting);
+            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, _flushBuffer, PeerState.Connecting);
             _peers[hashCode] = peer;
             _peer ??= peer;
             if (_sentinel == null)
@@ -327,7 +322,7 @@ namespace asphyxia
                 int count;
                 try
                 {
-                    count = _socket.ReceiveFrom(_socketBuffer, 0, BUFFER_SIZE, SocketFlags.None, ref _remoteEndPoint);
+                    count = _socket.ReceiveFrom(_socketBuffer, 0, SOCKET_BUFFER_SIZE, SocketFlags.None, ref _remoteEndPoint);
                 }
                 catch
                 {
@@ -365,7 +360,7 @@ namespace asphyxia
                             if (count != 25 || _socketBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                                 continue;
                             var conversationId = Unsafe.ReadUnaligned<uint>(ref _socketBuffer[0]);
-                            _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _outputBuffer);
+                            _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _flushBuffer);
                             _peers[hashCode] = _peer;
                             if (_sentinel == null)
                             {
@@ -381,8 +376,6 @@ namespace asphyxia
                     }
 
                     _peer.Input(_socketBuffer, count);
-                    if (!SOCKET_BATCH_IO)
-                        _peer.Service(_receiveBuffer);
                 }
                 finally
                 {
@@ -390,48 +383,11 @@ namespace asphyxia
                 }
             }
 
-            if (SOCKET_BATCH_IO)
+            var node = _sentinel;
+            while (node != null)
             {
-                var node = _sentinel;
-                while (node != null)
-                {
-                    node.Service(_receiveBuffer);
-                    node = node.Next;
-                }
-            }
-        }
-
-        /// <summary>
-        ///     Flush
-        /// </summary>
-        public void Flush()
-        {
-            if (SOCKET_BATCH_IO)
-            {
-                while (_outgoingCommands.TryDequeue(out var outgoingCommand))
-                {
-#if NET6_0_OR_GREATER
-                    try
-                    {
-                        _socket.SendTo(new Span<byte>(outgoingCommand.Data, outgoingCommand.Length), SocketFlags.None, outgoingCommand.IPEndPoint);
-                    }
-                    catch
-                    {
-                        //
-                    }
-#else
-                    outgoingCommand.CopyTo(_socketBuffer);
-                    try
-                    {
-                        _socket.SendTo(_socketBuffer, 0, outgoingCommand.Length, SocketFlags.None, outgoingCommand.IPEndPoint);
-                    }
-                    catch
-                    {
-                        //
-                    }
-#endif
-                    outgoingCommand.Dispose();
-                }
+                node.Service(_receiveBuffer);
+                node = node.Next;
             }
         }
 
@@ -449,33 +405,28 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal void Insert(EndPoint endPoint, byte* buffer, int length)
         {
-            if (SOCKET_BATCH_IO)
+            if (!_socket.Poll(0, SelectMode.SelectWrite))
+                return;
+#if !UNITY_2021_3_OR_NEWER || NET6_0_OR_GREATER
+            try
             {
-                _outgoingCommands.Enqueue(new OutgoingCommand(endPoint, buffer, length));
+                _socket.SendTo(new Span<byte>(buffer, length), SocketFlags.None, endPoint);
             }
-            else
+            catch
             {
-#if NET6_0_OR_GREATER
-                try
-                {
-                    _socket.SendTo(new Span<byte>(buffer, length), SocketFlags.None, endPoint);
-                }
-                catch
-                {
-                    //
-                }
+                //
+            }
 #else
-                Unsafe.CopyBlock(ref _sendBuffer[0], ref *buffer, (uint)length);
-                try
-                {
-                    _socket.SendTo(_socketBuffer, 0, length, SocketFlags.None, endPoint);
-                }
-                catch
-                {
-                    //
-                }
-#endif
+            Unsafe.CopyBlock(ref _sendBuffer[0], ref *buffer, (uint)length);
+            try
+            {
+                _socket.SendTo(_socketBuffer, 0, length, SocketFlags.None, endPoint);
             }
+            catch
+            {
+                //
+            }
+#endif
         }
 
         /// <summary>
