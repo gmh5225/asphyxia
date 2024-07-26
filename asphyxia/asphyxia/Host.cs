@@ -104,6 +104,16 @@ namespace asphyxia
         private Peer? _peer;
 
         /// <summary>
+        ///     Service timestamp
+        /// </summary>
+        private uint _serviceTimestamp;
+
+        /// <summary>
+        ///     Flush timestamp
+        /// </summary>
+        private uint _flushTimestamp;
+
+        /// <summary>
         ///     State lock
         /// </summary>
         private readonly object _lock = new();
@@ -319,8 +329,12 @@ namespace asphyxia
         /// </summary>
         public void Service()
         {
+            var current = Current;
+            if (current == _serviceTimestamp || !_socket.Poll(0, SelectMode.SelectRead))
+                return;
+            _serviceTimestamp = current;
             var remoteEndPoint = _remoteEndPoint.GetHashCode();
-            while (_socket.Poll(0, SelectMode.SelectRead))
+            do
             {
                 int count;
                 try
@@ -376,15 +390,14 @@ namespace asphyxia
                         }
                     }
 
-                    _peer.Input(_socketBuffer, count);
+                    _peer.Input(_socketBuffer, count, current);
                 }
                 finally
                 {
                     remoteEndPoint = hashCode;
                 }
-            }
+            } while (_socket.Poll(0, SelectMode.SelectRead));
 
-            var current = Current;
             var node = _sentinel;
             while (node != null)
             {
@@ -400,6 +413,9 @@ namespace asphyxia
         public void Flush()
         {
             var current = Current;
+            if (current == _flushTimestamp)
+                return;
+            _flushTimestamp = current;
             var node = _sentinel;
             while (node != null)
             {

@@ -16,7 +16,7 @@ namespace KCP
 {
     public unsafe interface IKcpCallback
     {
-        void Output(byte* buffer, int length);
+        void Output(byte* buffer, int length, uint current);
     }
 
     internal unsafe struct IQUEUEHEAD

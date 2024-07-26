@@ -136,20 +136,22 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        void IKcpCallback.Output(byte* buffer, int length) => Output(buffer, length);
+        /// <param name="current">Timestamp</param>
+        void IKcpCallback.Output(byte* buffer, int length, uint current) => Output(buffer, length, current);
 
         /// <summary>
         ///     Input
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal void Input(byte[] buffer, int length)
+        /// <param name="current">Timestamp</param>
+        internal void Input(byte[] buffer, int length, uint current)
         {
             if (_kcp.Input(buffer, length) != 0)
                 return;
             if (_state != Connected)
                 return;
-            _lastReceiveTimestamp = Current;
+            _lastReceiveTimestamp = current;
         }
 
         /// <summary>
@@ -157,9 +159,10 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        private void Output(byte* buffer, int length)
+        /// <param name="current">Timestamp</param>
+        private void Output(byte* buffer, int length, uint current)
         {
-            _lastSendTimestamp = Current;
+            _lastSendTimestamp = current;
             _host.Insert(IPEndPoint, buffer, length);
             if (_disconnecting && _kcp.SendQueueCount == 0)
             {
@@ -370,7 +373,7 @@ namespace asphyxia
             _sendBuffer[2] = (byte)Header.Disconnect;
             _sendBuffer[3] = (byte)DisconnectAcknowledge;
             *(uint*)(_sendBuffer + 4) = conv;
-            Output(_sendBuffer, 8);
+            Output(_sendBuffer, 8, Current);
             _host.Remove(IPEndPoint.GetHashCode(), this);
         }
 

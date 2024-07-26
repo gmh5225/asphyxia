@@ -129,12 +129,12 @@ namespace KCP
 
         private static void ikcp_segment_delete(IKCPCB* kcp, IKCPSEG* seg) => ikcp_free(seg);
 
-        private static void ikcp_output(IKcpCallback output, byte* data, int size)
+        private static void ikcp_output(IKcpCallback output, byte* data, int size, uint current)
         {
             if (size == 0)
                 return;
             size += (int)REVERSED_HEAD;
-            output.Output(data - (int)REVERSED_HEAD, size);
+            output.Output(data - (int)REVERSED_HEAD, size, current);
         }
 
         public static IKCPCB* ikcp_create(uint conv)
@@ -802,7 +802,7 @@ namespace KCP
                 size = (int)(ptr - buffer);
                 if (size + (int)OVERHEAD > (int)kcp->mtu)
                 {
-                    ikcp_output(output, buffer, size);
+                    ikcp_output(output, buffer, size, current);
                     ptr = buffer;
                 }
 
@@ -844,7 +844,7 @@ namespace KCP
                 size = (int)(ptr - buffer);
                 if (size + (int)OVERHEAD > (int)kcp->mtu)
                 {
-                    ikcp_output(output, buffer, size);
+                    ikcp_output(output, buffer, size, current);
                     ptr = buffer;
                 }
 
@@ -857,7 +857,7 @@ namespace KCP
                 size = (int)(ptr - buffer);
                 if (size + (int)OVERHEAD > (int)kcp->mtu)
                 {
-                    ikcp_output(output, buffer, size);
+                    ikcp_output(output, buffer, size, current);
                     ptr = buffer;
                 }
 
@@ -933,7 +933,7 @@ namespace KCP
                         var need = (int)(OVERHEAD + segment->len);
                         if (size + need > (int)kcp->mtu)
                         {
-                            ikcp_output(output, buffer, size);
+                            ikcp_output(output, buffer, size, current);
                             ptr = buffer;
                         }
 
@@ -993,7 +993,7 @@ namespace KCP
                         var need = (int)(OVERHEAD + segment->len);
                         if (size + need > (int)kcp->mtu)
                         {
-                            ikcp_output(output, buffer, size);
+                            ikcp_output(output, buffer, size, current);
                             ptr = buffer;
                         }
 
@@ -1053,7 +1053,7 @@ namespace KCP
                         var need = (int)(OVERHEAD + segment->len);
                         if (size + need > (int)kcp->mtu)
                         {
-                            ikcp_output(output, buffer, size);
+                            ikcp_output(output, buffer, size, current);
                             ptr = buffer;
                         }
 
@@ -1072,7 +1072,7 @@ namespace KCP
 
             size = (int)(ptr - buffer);
             if (size > 0)
-                ikcp_output(output, buffer, size);
+                ikcp_output(output, buffer, size, current);
             if (change != 0)
             {
                 var inflight = kcp->snd_nxt - kcp->snd_una;
