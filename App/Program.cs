@@ -3,13 +3,14 @@
 // Copyright © 2024 怨靈. All rights reserved.
 //------------------------------------------------------------
 
+using System.Net.Sockets;
 using System.Text;
 
 namespace asphyxia
 {
     public sealed class Program
     {
-        private static void Main() => StartNatTravelService();
+        private static void Main() => TestConnection();
 
         private static void StartNatTravelService()
         {
@@ -31,7 +32,7 @@ namespace asphyxia
         {
             var a = new Host();
             var b = new Host();
-            a.Create(100, 7777);
+            a.Create(100, 7777, Socket.OSSupportsIPv6);
             b.Create(100);
             Thread.Sleep(100);
             b.Connect("127.0.0.1", 7777);

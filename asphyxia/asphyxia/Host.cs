@@ -29,6 +29,7 @@ using static asphyxia.Time;
 // ReSharper disable RedundantIfElseBlock
 // ReSharper disable HeuristicUnreachableCode
 // ReSharper disable PossibleNullReferenceException
+// ReSharper disable CommentTypo
 
 namespace asphyxia
 {
@@ -157,7 +158,7 @@ namespace asphyxia
         /// </summary>
         /// <param name="maxPeers">Max peers</param>
         /// <param name="port">Port</param>
-        /// <param name="ipv6">DualMode</param>
+        /// <param name="ipv6">IPv6</param>
         public SocketError Create(int maxPeers, ushort port = 0, bool ipv6 = false)
         {
             lock (_lock)
@@ -170,6 +171,7 @@ namespace asphyxia
                 if (ipv6)
                 {
                     _socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+                    _socket.DualMode = true;
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                         _socket.IOControl(-1744830452, new byte[1], null);
                     localEndPoint = new IPEndPoint(IPAddress.IPv6Any, port);
@@ -248,7 +250,7 @@ namespace asphyxia
         /// <param name="remoteEndPoint">Remote endPoint</param>
         private Peer? ConnectInternal(IPEndPoint remoteEndPoint)
         {
-            if (remoteEndPoint.AddressFamily != _socket.AddressFamily)
+            if (remoteEndPoint.AddressFamily != _socket.AddressFamily && !_socket.DualMode)
                 return null;
             var hashCode = remoteEndPoint.GetHashCode();
             if (_peers.TryGetValue(hashCode, out var peer))
@@ -306,7 +308,7 @@ namespace asphyxia
         /// <param name="remoteEndPoint">Remote endPoint</param>
         private void PingInternal(IPEndPoint remoteEndPoint)
         {
-            if (remoteEndPoint.AddressFamily != _socket.AddressFamily)
+            if (remoteEndPoint.AddressFamily != _socket.AddressFamily && !_socket.DualMode)
                 return;
             _sendBuffer[0] = (byte)Header.Ping;
             Insert(remoteEndPoint, _sendBuffer, 1);
