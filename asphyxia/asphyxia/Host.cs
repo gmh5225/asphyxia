@@ -342,7 +342,7 @@ namespace asphyxia
                             var conversationId = ReadUnaligned<uint>(ref _socketBuffer[4]);
                             if (_peer == null || hashCode != remoteEndPoint)
                             {
-                                if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out _peer))
+                                if (_peers.TryGetValue(hashCode, out _peer))
                                     _peer.TryDisconnectNow(conversationId);
                             }
                             else
