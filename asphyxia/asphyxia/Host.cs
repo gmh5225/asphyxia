@@ -6,15 +6,14 @@
 #if UNITY_2021_3_OR_NEWER || GODOT
 using System;
 using System.Collections.Generic;
-using System.Threading;
 #endif
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using static System.Net.Sockets.Socket;
 using static asphyxia.Settings;
+using static System.Runtime.CompilerServices.Unsafe;
 using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
 
@@ -338,7 +337,7 @@ namespace asphyxia
                     {
                         if (count == 8 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge && _socketBuffer[2] == (byte)Header.Disconnect && _socketBuffer[3] == (byte)Header.DisconnectAcknowledge)
                         {
-                            var conversationId = Unsafe.ReadUnaligned<uint>(ref _socketBuffer[4]);
+                            var conversationId = ReadUnaligned<uint>(ref _socketBuffer[4]);
                             if (_peer == null || hashCode != remoteEndPoint)
                             {
                                 if (_peers.TryGetValue(_remoteEndPoint.GetHashCode(), out _peer))
@@ -359,7 +358,7 @@ namespace asphyxia
                         {
                             if (count != 25 || _socketBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                                 continue;
-                            var conversationId = Unsafe.ReadUnaligned<uint>(ref _socketBuffer[0]);
+                            var conversationId = ReadUnaligned<uint>(ref _socketBuffer[0]);
                             _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _flushBuffer);
                             _peers[hashCode] = _peer;
                             if (_sentinel == null)
@@ -410,14 +409,14 @@ namespace asphyxia
 #if !UNITY_2021_3_OR_NEWER || NET6_0_OR_GREATER
             try
             {
-                _socket.SendTo(new Span<byte>(buffer, length), SocketFlags.None, endPoint);
+                _socket.SendTo(new ReadOnlySpan<byte>(buffer, length), SocketFlags.None, endPoint);
             }
             catch
             {
                 //
             }
 #else
-            Unsafe.CopyBlock(ref _sendBuffer[0], ref *buffer, (uint)length);
+            CopyBlock(ref _socketBuffer[0], ref *buffer, (uint)length);
             try
             {
                 _socket.SendTo(_socketBuffer, 0, length, SocketFlags.None, endPoint);
