@@ -192,6 +192,21 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <returns>Send bytes</returns>
+        public int Send(DataPacket buffer)
+        {
+            if (_state != Connected)
+                return -1;
+            var length = buffer.Length;
+            _sendBuffer[0] = (byte)Data;
+            CopyBlock(_sendBuffer + 1, (void*)buffer.Data, (uint)length);
+            return SendInternal(_sendBuffer, length + 1);
+        }
+
+        /// <summary>
+        ///     Send
+        /// </summary>
+        /// <param name="buffer">Buffer</param>
+        /// <returns>Send bytes</returns>
         public int Send(byte[] buffer)
         {
             if (_state != Connected)
