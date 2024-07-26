@@ -85,11 +85,6 @@ namespace asphyxia
         private PeerState _state;
 
         /// <summary>
-        ///     Next update Timestamp
-        /// </summary>
-        private uint _nextUpdateTimestamp;
-
-        /// <summary>
         ///     Disconnecting
         /// </summary>
         private bool _disconnecting;
@@ -152,7 +147,6 @@ namespace asphyxia
         {
             if (_kcp.Input(buffer, length) != 0)
                 return;
-            _nextUpdateTimestamp = 0;
             if (_state != Connected)
                 return;
             _lastReceiveTimestamp = Current;
@@ -181,11 +175,7 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal int SendInternal(byte* buffer, int length)
-        {
-            _nextUpdateTimestamp = 0;
-            return _kcp.Send(buffer, length);
-        }
+        internal int SendInternal(byte* buffer, int length) => _kcp.Send(buffer, length);
 
         /// <summary>
         ///     Send
@@ -429,8 +419,9 @@ namespace asphyxia
         /// <summary>
         ///     Service
         /// </summary>
+        /// <param name="current">Timestamp</param>
         /// <param name="buffer">Receive buffer</param>
-        internal void Service(byte* buffer)
+        internal void Service(uint current, byte* buffer)
         {
             if (_kcp.State == -1)
             {
@@ -438,7 +429,7 @@ namespace asphyxia
                 return;
             }
 
-            if (_lastReceiveTimestamp + PEER_RECEIVE_TIMEOUT <= Current)
+            if (_lastReceiveTimestamp + PEER_RECEIVE_TIMEOUT <= current)
             {
                 Timeout();
                 return;
@@ -459,77 +450,71 @@ namespace asphyxia
                 }
 
                 var header = buffer[0];
-                if (header != 0 && header <= 64 && (header & (header - 1)) == 0)
+                switch (header)
                 {
-                    switch (header)
-                    {
-                        case (byte)Ping:
-                            if (_state != Connected)
-                                goto error;
-                            continue;
-                        case (byte)Connect:
-                            if (_state != PeerState.None)
-                                goto error;
-                            _state = ConnectAcknowledging;
-                            buffer[0] = (byte)ConnectAcknowledge;
-                            SendInternal(buffer, 1);
-                            continue;
-                        case (byte)ConnectAcknowledge:
-                            if (_state != Connecting)
-                                goto error;
-                            _state = Connected;
-                            _host.Insert(new NetworkEvent(NetworkEventType.Connect, this));
-                            buffer[0] = (byte)ConnectEstablish;
-                            SendInternal(buffer, 1);
-                            continue;
-                        case (byte)ConnectEstablish:
-                            if (_state != ConnectAcknowledging)
-                                goto error;
-                            _state = Connected;
-                            _host.Insert(new NetworkEvent(NetworkEventType.Connect, this));
-                            continue;
-                        case (byte)Data:
-                            if (_state != Connected && _state != Disconnecting)
-                                goto error;
-                            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer + 1, received - 1)));
-                            continue;
-                        case (byte)Header.Disconnect:
-                            if (_state != Connected)
-                                goto error;
-                            _state = Disconnected;
-                            _disconnecting = true;
-                            buffer[0] = (byte)DisconnectAcknowledge;
-                            SendInternal(buffer, 1);
-                            continue;
-                        case (byte)DisconnectAcknowledge:
-                            if (_state != Disconnecting)
-                                goto error;
-                            _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
-                            _kcp.Dispose();
-                            _host.Remove(IPEndPoint.GetHashCode(), this);
-                            return;
-                        default:
-                            error:
-                            DisconnectInternal();
-                            return;
-                    }
+                    case (byte)Ping:
+                        if (_state != Connected)
+                            goto error;
+                        continue;
+                    case (byte)Connect:
+                        if (_state != PeerState.None)
+                            goto error;
+                        _state = ConnectAcknowledging;
+                        buffer[0] = (byte)ConnectAcknowledge;
+                        SendInternal(buffer, 1);
+                        continue;
+                    case (byte)ConnectAcknowledge:
+                        if (_state != Connecting)
+                            goto error;
+                        _state = Connected;
+                        _host.Insert(new NetworkEvent(NetworkEventType.Connect, this));
+                        buffer[0] = (byte)ConnectEstablish;
+                        SendInternal(buffer, 1);
+                        continue;
+                    case (byte)ConnectEstablish:
+                        if (_state != ConnectAcknowledging)
+                            goto error;
+                        _state = Connected;
+                        _host.Insert(new NetworkEvent(NetworkEventType.Connect, this));
+                        continue;
+                    case (byte)Data:
+                        if (_state != Connected && _state != Disconnecting)
+                            goto error;
+                        _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer + 1, received - 1)));
+                        continue;
+                    case (byte)Header.Disconnect:
+                        if (_state != Connected)
+                            goto error;
+                        _state = Disconnected;
+                        _disconnecting = true;
+                        buffer[0] = (byte)DisconnectAcknowledge;
+                        SendInternal(buffer, 1);
+                        continue;
+                    case (byte)DisconnectAcknowledge:
+                        if (_state != Disconnecting)
+                            goto error;
+                        _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
+                        _kcp.Dispose();
+                        _host.Remove(IPEndPoint.GetHashCode(), this);
+                        return;
+                    default:
+                        error:
+                        DisconnectInternal();
+                        return;
                 }
             }
 
-            var current = Current;
             if (_state == Connected && _lastSendTimestamp + PEER_PING_INTERVAL <= current)
             {
                 _lastSendTimestamp = current;
                 buffer[0] = (byte)Ping;
                 SendInternal(buffer, 1);
             }
-
-            if (current >= _nextUpdateTimestamp)
-            {
-                _kcp.Update(current, _flushBuffer);
-                if (_kcp.IsSet)
-                    _nextUpdateTimestamp = _kcp.Check(current);
-            }
         }
+
+        /// <summary>
+        ///     Update
+        /// </summary>
+        internal void Update(uint current) => _kcp.Update(current, _flushBuffer);
     }
 }

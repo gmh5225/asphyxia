@@ -123,6 +123,9 @@ namespace asphyxia
                         }
                     }
                 }
+
+                a.Flush();
+                b.Flush();
             }
         }
     }

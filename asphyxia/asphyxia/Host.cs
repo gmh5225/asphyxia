@@ -15,6 +15,7 @@ using static asphyxia.Settings;
 using static System.Runtime.CompilerServices.Unsafe;
 using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
+using static asphyxia.Time;
 
 #pragma warning disable CA1816
 #pragma warning disable CS0162
@@ -329,13 +330,13 @@ namespace asphyxia
                     continue;
                 }
 
-                if (count <= 0)
-                    break;
                 var hashCode = _remoteEndPoint.GetHashCode();
                 try
                 {
                     if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
                     {
+                        if (count <= 0)
+                            break;
                         if (count == 8 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge && _socketBuffer[2] == (byte)Header.Disconnect && _socketBuffer[3] == (byte)Header.DisconnectAcknowledge)
                         {
                             var conversationId = ReadUnaligned<uint>(ref _socketBuffer[4]);
@@ -383,11 +384,28 @@ namespace asphyxia
                 }
             }
 
+            var current = Current;
             var node = _sentinel;
             while (node != null)
             {
-                node.Service(_receiveBuffer);
+                var temp = node;
                 node = node.Next;
+                temp.Service(current, _receiveBuffer);
+            }
+        }
+
+        /// <summary>
+        ///     Flush
+        /// </summary>
+        public void Flush()
+        {
+            var current = Current;
+            var node = _sentinel;
+            while (node != null)
+            {
+                var temp = node;
+                node = node.Next;
+                temp.Update(current);
             }
         }
 
@@ -405,28 +423,19 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal void Insert(EndPoint endPoint, byte* buffer, int length)
         {
-            if (!_socket.Poll(0, SelectMode.SelectWrite))
-                return;
+            try
+            {
 #if !UNITY_2021_3_OR_NEWER || NET6_0_OR_GREATER
-            try
-            {
                 _socket.SendTo(new ReadOnlySpan<byte>(buffer, length), SocketFlags.None, endPoint);
-            }
-            catch
-            {
-                //
-            }
 #else
-            CopyBlock(ref _socketBuffer[0], ref *buffer, (uint)length);
-            try
-            {
+                CopyBlock(ref _socketBuffer[0], ref *buffer, (uint)length);
                 _socket.SendTo(_socketBuffer, 0, length, SocketFlags.None, endPoint);
+#endif
             }
             catch
             {
                 //
             }
-#endif
         }
 
         /// <summary>
