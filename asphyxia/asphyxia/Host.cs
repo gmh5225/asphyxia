@@ -11,7 +11,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using static System.Net.Sockets.Socket;
 using static asphyxia.Settings;
 using static System.Runtime.CompilerServices.Unsafe;
 using static System.Runtime.InteropServices.Marshal;
@@ -20,6 +19,7 @@ using static KCP.KCPBASIC;
 #pragma warning disable CA1816
 #pragma warning disable CS0162
 #pragma warning disable CS8600
+#pragma warning disable CS8602
 #pragma warning disable CS8603
 #pragma warning disable CS8618
 #pragma warning disable CS8625
@@ -39,7 +39,7 @@ namespace asphyxia
         /// <summary>
         ///     Socket
         /// </summary>
-        private Socket _socket;
+        private Socket? _socket;
 
         /// <summary>
         ///     Socket buffer
@@ -157,16 +157,14 @@ namespace asphyxia
         /// <param name="maxPeers">Max peers</param>
         /// <param name="port">Port</param>
         /// <param name="ipv6">DualMode</param>
-        public void Create(int maxPeers, ushort port = 0, bool ipv6 = false)
+        public SocketError Create(int maxPeers, ushort port = 0, bool ipv6 = false)
         {
             lock (_lock)
             {
                 if (IsSet)
-                    throw new InvalidOperationException("Host has created.");
-                if (maxPeers <= 0)
-                    maxPeers = 1;
-                if (!OSSupportsIPv6)
-                    ipv6 = false;
+                    return SocketError.InvalidArgument;
+                if (ipv6 && !Socket.OSSupportsIPv6)
+                    return SocketError.SocketNotSupported;
                 IPEndPoint localEndPoint;
                 if (ipv6)
                 {
@@ -189,7 +187,7 @@ namespace asphyxia
                 {
                     _socket.Dispose();
                     _socket = null;
-                    throw;
+                    return SocketError.AddressAlreadyInUse;
                 }
 
                 if (ipv6)
@@ -203,6 +201,8 @@ namespace asphyxia
                         _remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
                 }
 
+                if (maxPeers <= 0)
+                    maxPeers = 1;
                 var socketBufferSize = maxPeers * SOCKET_BUFFER_SIZE;
                 if (socketBufferSize < 8388608)
                     socketBufferSize = 8388608;
@@ -217,6 +217,7 @@ namespace asphyxia
                 _sendBuffer = (byte*)AllocHGlobal(KCP_MESSAGE_SIZE);
                 _flushBuffer = (byte*)AllocHGlobal(KCP_FLUSH_BUFFER_SIZE);
                 _maxPeers = maxPeers;
+                return SocketError.Success;
             }
         }
 
