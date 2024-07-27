@@ -14,7 +14,6 @@ using System.Security.Cryptography;
 using static asphyxia.Settings;
 using static asphyxia.Time;
 using static asphyxia.PacketFlag;
-using static System.Runtime.CompilerServices.Unsafe;
 using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
 
@@ -374,9 +373,9 @@ namespace asphyxia
                     {
                         if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
                         {
-                            if (count == 8 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge && _socketBuffer[2] == (byte)Header.Disconnect && _socketBuffer[3] == (byte)Header.DisconnectAcknowledge)
+                            if (count == 2 && _socketBuffer[0] == (byte)Header.Disconnect)
                             {
-                                var conversationId = As<byte, uint>(ref _socketBuffer[4]);
+                                var conversationId = _socketBuffer[1];
                                 if (_peer == null || hashCode != remoteEndPoint)
                                 {
                                     if (_peers.TryGetValue(hashCode, out _peer))

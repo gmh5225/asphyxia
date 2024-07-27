@@ -104,7 +104,7 @@ namespace asphyxia
                     }
                 }
 
-                if (connected)
+                if (connected && connected2)
                 {
                     i++;
                     if (i < 10)
@@ -114,10 +114,7 @@ namespace asphyxia
                             peer?.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"server: {i} {k}"), PacketFlag.Sequenced | PacketFlag.NoAllocate));
                         }
                     }
-                }
 
-                if (connected2)
-                {
                     j++;
                     if (j == 10)
                         peer?.DisconnectNow();
