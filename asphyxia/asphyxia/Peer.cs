@@ -78,12 +78,12 @@ namespace asphyxia
         /// <summary>
         ///     Last send id
         /// </summary>
-        private uint _lastSendId;
+        private ushort _lastSendId;
 
         /// <summary>
         ///     Last receive id
         /// </summary>
-        private uint _lastReceiveId;
+        private ushort _lastReceiveId;
 
         /// <summary>
         ///     Last send timestamp
@@ -188,11 +188,11 @@ namespace asphyxia
             var conversationId = buffer[0];
             if (conversationId != _conversationId)
                 return;
-            var sendId = As<byte, uint>(ref buffer[1]);
-            if (_lastReceiveId != 0 && (sendId <= _lastReceiveId || sendId - _lastReceiveId > 2147483647) && (sendId >= _lastReceiveId || _lastReceiveId - sendId <= 2147483647))
+            var sendId = As<byte, ushort>(ref buffer[1]);
+            if (_lastReceiveId != 0 && (sendId <= _lastReceiveId || sendId - _lastReceiveId > 32767) && (sendId >= _lastReceiveId || _lastReceiveId - sendId <= 32767))
                 return;
             _lastReceiveId = sendId;
-            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 5, length - 5, Sequenced)));
+            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 3, length - 3, Sequenced)));
         }
 
         /// <summary>
@@ -259,9 +259,9 @@ namespace asphyxia
         internal int SendSequenced(byte* buffer, int length)
         {
             _sendBuffer[0] = _conversationId;
-            *(uint*)(_sendBuffer + 1) = _lastSendId++;
-            CopyBlock(_sendBuffer + 5, buffer, (uint)length);
-            length += 6;
+            *(ushort*)(_sendBuffer + 1) = _lastSendId++;
+            CopyBlock(_sendBuffer + 3, buffer, (uint)length);
+            length += 4;
             _sendBuffer[length - 1] = (byte)Sequenced;
             _host.Insert(IPEndPoint, _sendBuffer, length);
             return length;
