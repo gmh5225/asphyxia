@@ -349,14 +349,13 @@ namespace asphyxia
         private void SendDisconnectNow()
         {
             _state = Disconnected;
-            var conv = _conversationId;
             _kcp.Flush(_flushBuffer);
             _kcp.Dispose();
             _sendBuffer[0] = (byte)Header.Disconnect;
             _sendBuffer[1] = (byte)DisconnectAcknowledge;
             _sendBuffer[2] = (byte)Header.Disconnect;
             _sendBuffer[3] = (byte)DisconnectAcknowledge;
-            *(uint*)(_sendBuffer + 4) = conv;
+            *(uint*)(_sendBuffer + 4) = _conversationId;
             Output(_sendBuffer, 8, Current);
             _host.Remove(IPEndPoint.GetHashCode(), this);
         }
