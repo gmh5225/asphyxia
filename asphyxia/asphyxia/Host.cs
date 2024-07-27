@@ -364,7 +364,7 @@ namespace asphyxia
 
                     if ((flag & (int)Sequenced) != 0)
                     {
-                        if (count <= 5 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
+                        if (count <= 3 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
                             continue;
                         _peer.ReceiveSequenced(_socketBuffer, count);
                         continue;
