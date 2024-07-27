@@ -90,7 +90,7 @@ namespace asphyxia
                         case NetworkEventType.Data:
                             Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine($"{networkEvent.Packet.Flag}: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
-                            Console.ForegroundColor = ConsoleColor.Cyan;
+                            Console.ForegroundColor = ConsoleColor.White;
                             networkEvent.Packet.Dispose();
                             break;
                         case NetworkEventType.Disconnect:
@@ -108,7 +108,12 @@ namespace asphyxia
                 {
                     i++;
                     if (i < 10)
-                        peer?.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"server: {i}"), PacketFlag.Reliable | PacketFlag.NoAllocate));
+                    {
+                        for (var k = 0; k < 1; k++)
+                        {
+                            peer?.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"server: {i} {k}"), PacketFlag.Sequenced | PacketFlag.NoAllocate));
+                        }
+                    }
                 }
 
                 if (connected2)
