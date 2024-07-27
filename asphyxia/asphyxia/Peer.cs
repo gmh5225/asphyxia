@@ -369,8 +369,10 @@ namespace asphyxia
             _kcp.Flush(_flushBuffer);
             _kcp.Dispose();
             _sendBuffer[0] = (byte)Header.Disconnect;
-            _sendBuffer[1] = _conversationId;
-            Output(_sendBuffer, 2, 0);
+            _sendBuffer[1] = (byte)DisconnectAcknowledge;
+            _sendBuffer[2] = _conversationId;
+            _sendBuffer[3] = (byte)Reliable;
+            _host.Insert(IPEndPoint, _sendBuffer, 4);
             _host.Remove(IPEndPoint.GetHashCode(), this);
         }
 

@@ -373,9 +373,9 @@ namespace asphyxia
                     {
                         if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
                         {
-                            if (count == 2 && _socketBuffer[0] == (byte)Header.Disconnect)
+                            if (count == 3 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge)
                             {
-                                var conversationId = _socketBuffer[1];
+                                var conversationId = _socketBuffer[2];
                                 if (_peer == null || hashCode != remoteEndPoint)
                                 {
                                     if (_peers.TryGetValue(hashCode, out _peer))
