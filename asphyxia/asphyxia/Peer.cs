@@ -366,26 +366,11 @@ namespace asphyxia
         private void SendDisconnectNow()
         {
             _state = Disconnected;
-            var packetLoss = PacketLoss;
             _kcp.Flush(_flushBuffer);
             _kcp.Dispose();
             _sendBuffer[0] = (byte)Header.Disconnect;
             _sendBuffer[1] = _conversationId;
-            if (packetLoss == 0f)
-            {
-                Output(_sendBuffer, 2, 0);
-            }
-            else if (packetLoss < 1f)
-            {
-                var count = 1f / (1f - packetLoss);
-                if (count < 1)
-                    count = 1;
-                else if (count > 10)
-                    count = 10;
-                for (var i = 0; i < count; ++i)
-                    Output(_sendBuffer, 2, 0);
-            }
-
+            Output(_sendBuffer, 2, 0);
             _host.Remove(IPEndPoint.GetHashCode(), this);
         }
 
