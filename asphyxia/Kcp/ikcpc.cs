@@ -631,8 +631,6 @@ namespace KCP
 
         public static int ikcp_input(IKCPCB* kcp, byte* data, int size)
         {
-            if (data == null || size < (int)REVERSED_HEAD + (int)OVERHEAD)
-                return -1;
             uint conv;
             data = ikcp_decode32u(data, &conv);
             if (conv != kcp->conv)

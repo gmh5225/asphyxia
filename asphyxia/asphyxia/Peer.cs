@@ -7,10 +7,10 @@
 using System;
 #endif
 using System.Net;
-using System.Runtime.InteropServices;
 using KCP;
 using static asphyxia.Settings;
 using static asphyxia.Time;
+using static asphyxia.PacketFlag;
 using static asphyxia.PeerState;
 using static asphyxia.Header;
 using static System.Runtime.CompilerServices.Unsafe;
@@ -68,6 +68,16 @@ namespace asphyxia
         ///     Flush buffer
         /// </summary>
         private readonly byte* _flushBuffer;
+
+        /// <summary>
+        ///     Last send id
+        /// </summary>
+        private uint _lastSendId;
+
+        /// <summary>
+        ///     Last receive id
+        /// </summary>
+        private uint _lastReceiveId;
 
         /// <summary>
         ///     Last send timestamp
@@ -129,7 +139,7 @@ namespace asphyxia
         /// <summary>
         ///     Smoothed round-trip time
         /// </summary>
-        public int RoundTripTime => _kcp.RxSrtt;
+        public uint RoundTripTime => (uint)_kcp.RxSrtt;
 
         /// <summary>
         ///     Output
@@ -140,18 +150,52 @@ namespace asphyxia
         void IKcpCallback.Output(byte* buffer, int length, uint current) => Output(buffer, length, current);
 
         /// <summary>
-        ///     Input
+        ///     Receive
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
         /// <param name="current">Timestamp</param>
-        internal void Input(byte[] buffer, int length, uint current)
+        internal void ReceiveReliable(byte[] buffer, int length, uint current)
         {
             if (_kcp.Input(buffer, length) != 0)
                 return;
             if (_state != Connected)
                 return;
             _lastReceiveTimestamp = current;
+        }
+
+        /// <summary>
+        ///     Receive
+        /// </summary>
+        /// <param name="buffer">Buffer</param>
+        /// <param name="length">Length</param>
+        internal void ReceiveSequenced(byte[] buffer, int length)
+        {
+            if (_state != Connected)
+                return;
+            var conversationId = As<byte, uint>(ref buffer[0]);
+            if (conversationId != _kcp.ConversationId)
+                return;
+            var sendId = As<byte, uint>(ref buffer[4]);
+            if (_lastReceiveId >= sendId && _lastReceiveId != 0)
+                return;
+            _lastReceiveId = sendId;
+            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 8, length - 8, Sequenced)));
+        }
+
+        /// <summary>
+        ///     Receive
+        /// </summary>
+        /// <param name="buffer">Buffer</param>
+        /// <param name="length">Length</param>
+        internal void ReceiveUnreliable(byte[] buffer, int length)
+        {
+            if (_state != Connected)
+                return;
+            var conversationId = As<byte, uint>(ref buffer[0]);
+            if (conversationId != _kcp.ConversationId)
+                return;
+            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 4, length - 4, Unreliable)));
         }
 
         /// <summary>
@@ -163,7 +207,8 @@ namespace asphyxia
         private void Output(byte* buffer, int length, uint current)
         {
             _lastSendTimestamp = current;
-            _host.Insert(IPEndPoint, buffer, length);
+            buffer[length] = (byte)Reliable;
+            _host.Insert(IPEndPoint, buffer, length + 1);
             if (_disconnecting && _kcp.SendQueueCount == 0)
             {
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
@@ -178,37 +223,8 @@ namespace asphyxia
         /// </summary>
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal int SendInternal(byte* buffer, int length) => _kcp.Send(buffer, length);
-
-        /// <summary>
-        ///     Send
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <returns>Send bytes</returns>
-        public int Send(DataPacket buffer)
-        {
-            if (_state != Connected)
-                return -1;
-            var length = buffer.Length;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(_sendBuffer + 1, (void*)buffer.Data, (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
-        }
-
-        /// <summary>
-        ///     Send
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <returns>Send bytes</returns>
-        public int Send(byte[] buffer)
-        {
-            if (_state != Connected)
-                return -1;
-            var length = buffer.Length;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
-        }
+        /// <returns>Sent bytes</returns>
+        internal int KcpSend(byte* buffer, int length) => _kcp.Send(buffer, length);
 
         /// <summary>
         ///     Send
@@ -216,105 +232,61 @@ namespace asphyxia
         /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
         /// <returns>Send bytes</returns>
-        public int Send(byte[] buffer, int length)
+        internal int SendReliable(byte* buffer, int length)
         {
-            if (_state != Connected)
-                return -1;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(ref *(_sendBuffer + 1), ref buffer[0], (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
-        }
-
-        /// <summary>
-        ///     Send
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <param name="offset">Offset</param>
-        /// <param name="length">Length</param>
-        /// <returns>Send bytes</returns>
-        public int Send(byte[] buffer, int offset, int length)
-        {
-            if (_state != Connected)
-                return -1;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(ref *(_sendBuffer + 1), ref buffer[offset], (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
-        }
-
-        /// <summary>
-        ///     Send
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <returns>Send bytes</returns>
-        public int Send(ReadOnlySpan<byte> buffer)
-        {
-            if (_state != Connected)
-                return -1;
-            var length = buffer.Length;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(ref *(_sendBuffer + 1), ref MemoryMarshal.GetReference(buffer), (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
-        }
-
-        /// <summary>
-        ///     Send
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <returns>Send bytes</returns>
-        public int Send(ReadOnlyMemory<byte> buffer)
-        {
-            if (_state != Connected)
-                return -1;
-            var length = buffer.Length;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(ref *(_sendBuffer + 1), ref MemoryMarshal.GetReference(buffer.Span), (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
-        }
-
-        /// <summary>
-        ///     Send
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <returns>Send bytes</returns>
-        public int Send(ArraySegment<byte> buffer)
-        {
-            if (_state != Connected)
-                return -1;
-            var length = buffer.Count;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(ref *(_sendBuffer + 1), ref buffer.Array[buffer.Offset], (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
-        }
-
-        /// <summary>
-        ///     Send
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <param name="length">Length</param>
-        /// <returns>Send bytes</returns>
-        public int Send(byte* buffer, int length)
-        {
-            if (_state != Connected)
-                return -1;
             _sendBuffer[0] = (byte)Data;
             CopyBlock(_sendBuffer + 1, buffer, (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
+            return KcpSend(_sendBuffer, length + 1);
         }
 
         /// <summary>
         ///     Send
         /// </summary>
         /// <param name="buffer">Buffer</param>
-        /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
+        internal int SendSequenced(byte* buffer, int length)
+        {
+            *(uint*)_sendBuffer = _kcp.ConversationId;
+            *(uint*)(_sendBuffer + 4) = _lastSendId++;
+            CopyBlock(_sendBuffer + 8, buffer, (uint)length);
+            length += 9;
+            _sendBuffer[length - 1] = (byte)Sequenced;
+            _host.Insert(IPEndPoint, _sendBuffer, length);
+            return length;
+        }
+
+        /// <summary>
+        ///     Send
+        /// </summary>
+        /// <param name="buffer">Buffer</param>
+        /// <param name="length">Length</param>
+        internal int SendUnreliable(byte* buffer, int length)
+        {
+            *(uint*)_sendBuffer = _kcp.ConversationId;
+            CopyBlock(_sendBuffer + 4, buffer, (uint)length);
+            length += 5;
+            _sendBuffer[length - 1] = (byte)Unreliable;
+            _host.Insert(IPEndPoint, _sendBuffer, length);
+            return length;
+        }
+
+        /// <summary>
+        ///     Send
+        /// </summary>
+        /// <param name="packet">DataPacket</param>
         /// <returns>Send bytes</returns>
-        public int Send(byte* buffer, int offset, int length)
+        public int Send(DataPacket packet)
         {
             if (_state != Connected)
                 return -1;
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(_sendBuffer + 1, buffer + offset, (uint)length);
-            return SendInternal(_sendBuffer, length + 1);
+            var flag = (int)packet.Flag;
+            if ((flag & (int)Reliable) != 0)
+                return SendReliable((byte*)packet.Data, packet.Length);
+            if ((flag & (int)Sequenced) != 0)
+                return SendSequenced((byte*)packet.Data, packet.Length);
+            if ((flag & (int)Unreliable) != 0)
+                return SendUnreliable((byte*)packet.Data, packet.Length);
+            return -1;
         }
 
         /// <summary>
@@ -386,7 +358,7 @@ namespace asphyxia
             {
                 _state = Disconnecting;
                 _sendBuffer[0] = (byte)Header.Disconnect;
-                SendInternal(_sendBuffer, 1);
+                KcpSend(_sendBuffer, 1);
                 return;
             }
 
@@ -416,7 +388,7 @@ namespace asphyxia
                 return;
             _state = Disconnecting;
             _sendBuffer[0] = (byte)Header.Disconnect;
-            SendInternal(_sendBuffer, 1);
+            KcpSend(_sendBuffer, 1);
         }
 
         /// <summary>
@@ -464,7 +436,7 @@ namespace asphyxia
                             goto error;
                         _state = ConnectAcknowledging;
                         buffer[0] = (byte)ConnectAcknowledge;
-                        SendInternal(buffer, 1);
+                        KcpSend(buffer, 1);
                         continue;
                     case (byte)ConnectAcknowledge:
                         if (_state != Connecting)
@@ -472,7 +444,7 @@ namespace asphyxia
                         _state = Connected;
                         _host.Insert(new NetworkEvent(NetworkEventType.Connect, this));
                         buffer[0] = (byte)ConnectEstablish;
-                        SendInternal(buffer, 1);
+                        KcpSend(buffer, 1);
                         continue;
                     case (byte)ConnectEstablish:
                         if (_state != ConnectAcknowledging)
@@ -483,7 +455,7 @@ namespace asphyxia
                     case (byte)Data:
                         if (_state != Connected && _state != Disconnecting)
                             goto error;
-                        _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer + 1, received - 1)));
+                        _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer + 1, received - 1, Reliable)));
                         continue;
                     case (byte)Header.Disconnect:
                         if (_state != Connected)
@@ -491,7 +463,7 @@ namespace asphyxia
                         _state = Disconnected;
                         _disconnecting = true;
                         buffer[0] = (byte)DisconnectAcknowledge;
-                        SendInternal(buffer, 1);
+                        KcpSend(buffer, 1);
                         continue;
                     case (byte)DisconnectAcknowledge:
                         if (_state != Disconnecting)
@@ -511,7 +483,7 @@ namespace asphyxia
             {
                 _lastSendTimestamp = current;
                 buffer[0] = (byte)Ping;
-                SendInternal(buffer, 1);
+                KcpSend(buffer, 1);
             }
         }
 

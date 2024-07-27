@@ -27,14 +27,21 @@ namespace asphyxia
         public int Length;
 
         /// <summary>
+        ///     Flag
+        /// </summary>
+        public PacketFlag Flag;
+
+        /// <summary>
         ///     Structure
         /// </summary>
         /// <param name="data">Data</param>
         /// <param name="length">Length</param>
-        private DataPacket(nint data, int length)
+        /// <param name="flag">Flag</param>
+        private DataPacket(nint data, int length, PacketFlag flag)
         {
             Data = data;
             Length = length;
+            Flag = flag;
         }
 
         /// <summary>
@@ -46,24 +53,26 @@ namespace asphyxia
         ///     Create
         /// </summary>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(int length)
+        public static DataPacket Create(int length, PacketFlag flag)
         {
             var data = AllocHGlobal(length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
         ///     Create
         /// </summary>
         /// <param name="src">Source</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(DataPacket src)
+        public static DataPacket Create(DataPacket src, PacketFlag flag)
         {
             var length = src.Length;
             var data = AllocHGlobal(length);
             CopyBlock((byte*)data, (byte*)src.Data, (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -71,12 +80,13 @@ namespace asphyxia
         /// </summary>
         /// <param name="src">Source</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(DataPacket src, int length)
+        public static DataPacket Create(DataPacket src, int length, PacketFlag flag)
         {
             var data = AllocHGlobal(length);
             CopyBlock((byte*)data, (byte*)src.Data, (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -85,12 +95,13 @@ namespace asphyxia
         /// <param name="src">Source</param>
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(DataPacket src, int offset, int length)
+        public static DataPacket Create(DataPacket src, int offset, int length, PacketFlag flag)
         {
             var data = AllocHGlobal(length);
             CopyBlock((byte*)data, (byte*)src.Data + offset, (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -98,12 +109,15 @@ namespace asphyxia
         /// </summary>
         /// <param name="src">Source</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(byte* src, int length)
+        public static DataPacket Create(byte* src, int length, PacketFlag flag)
         {
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket((nint)src, length, flag);
             var data = AllocHGlobal(length);
             CopyBlock((byte*)data, src, (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -112,12 +126,15 @@ namespace asphyxia
         /// <param name="src">Source</param>
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(byte* src, int offset, int length)
+        public static DataPacket Create(byte* src, int offset, int length, PacketFlag flag)
         {
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket((nint)src, length, flag);
             var data = AllocHGlobal(length);
             CopyBlock((byte*)data, src + offset, (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -125,12 +142,15 @@ namespace asphyxia
         /// </summary>
         /// <param name="src">Source</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(nint src, int length)
+        public static DataPacket Create(nint src, int length, PacketFlag flag)
         {
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket(src, length, flag);
             var data = AllocHGlobal(length);
             CopyBlock((byte*)data, (byte*)src, (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -139,25 +159,31 @@ namespace asphyxia
         /// <param name="src">Source</param>
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(nint src, int offset, int length)
+        public static DataPacket Create(nint src, int offset, int length, PacketFlag flag)
         {
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket(src, length, flag);
             var data = AllocHGlobal(length);
             CopyBlock((byte*)data, (byte*)src + offset, (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
         ///     Create
         /// </summary>
         /// <param name="src">Source</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(byte[] src)
+        public static DataPacket Create(byte[] src, PacketFlag flag)
         {
             var length = src.Length;
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket((nint)AsPointer(ref src[0]), length, flag);
             var data = AllocHGlobal(length);
             CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -165,12 +191,15 @@ namespace asphyxia
         /// </summary>
         /// <param name="src">Source</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(byte[] src, int length)
+        public static DataPacket Create(byte[] src, int length, PacketFlag flag)
         {
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket((nint)AsPointer(ref src[0]), length, flag);
             var data = AllocHGlobal(length);
             CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -179,25 +208,31 @@ namespace asphyxia
         /// <param name="src">Source</param>
         /// <param name="offset">Offset</param>
         /// <param name="length">Length</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(byte[] src, int offset, int length)
+        public static DataPacket Create(byte[] src, int offset, int length, PacketFlag flag)
         {
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket((nint)AsPointer(ref src[offset]), length, flag);
             var data = AllocHGlobal(length);
             CopyBlock(ref *(byte*)data, ref src[offset], (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
         ///     Create
         /// </summary>
         /// <param name="src">Source</param>
+        /// <param name="flag">Flag</param>
         /// <returns>DataPacket</returns>
-        public static DataPacket Create(Span<byte> src)
+        public static DataPacket Create(Span<byte> src, PacketFlag flag)
         {
             var length = src.Length;
+            if (((int)flag & (int)PacketFlag.NoAllocate) != 0)
+                return new DataPacket((nint)AsPointer(ref src[0]), length, flag);
             var data = AllocHGlobal(length);
             CopyBlock(ref *(byte*)data, ref src[0], (uint)length);
-            return new DataPacket(data, length);
+            return new DataPacket(data, length, flag);
         }
 
         /// <summary>
@@ -337,7 +372,7 @@ namespace asphyxia
         /// </summary>
         public void Dispose()
         {
-            if (Data == IntPtr.Zero)
+            if (((int)Flag & (int)PacketFlag.NoAllocate) != 0 || Data == IntPtr.Zero)
                 return;
             FreeHGlobal(Data);
             Data = IntPtr.Zero;

@@ -12,10 +12,11 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using static asphyxia.Settings;
+using static asphyxia.Time;
+using static asphyxia.PacketFlag;
 using static System.Runtime.CompilerServices.Unsafe;
 using static System.Runtime.InteropServices.Marshal;
 using static KCP.KCPBASIC;
-using static asphyxia.Time;
 
 #pragma warning disable CA1816
 #pragma warning disable CS0162
@@ -285,7 +286,7 @@ namespace asphyxia
             }
 
             buffer[0] = (byte)Header.Connect;
-            peer.SendInternal(buffer, 1);
+            peer.KcpSend(buffer, 1);
             return peer;
         }
 
@@ -330,9 +331,11 @@ namespace asphyxia
         public void Service()
         {
             var current = Current;
-            if (current == _serviceTimestamp || !_socket.Poll(0, SelectMode.SelectRead))
+            if (current == _serviceTimestamp)
                 return;
             _serviceTimestamp = current;
+            if (_socket.Available == 0 && !_socket.Poll(0, SelectMode.SelectRead))
+                return;
             var remoteEndPoint = _remoteEndPoint.GetHashCode();
             do
             {
@@ -349,54 +352,75 @@ namespace asphyxia
                 var hashCode = _remoteEndPoint.GetHashCode();
                 try
                 {
-                    if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
+                    count--;
+                    int flag = _socketBuffer[count];
+                    if ((flag & (int)Unreliable) != 0)
                     {
-                        if (count == 8 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge && _socketBuffer[2] == (byte)Header.Disconnect && _socketBuffer[3] == (byte)Header.DisconnectAcknowledge)
-                        {
-                            var conversationId = ReadUnaligned<uint>(ref _socketBuffer[4]);
-                            if (_peer == null || hashCode != remoteEndPoint)
-                            {
-                                if (_peers.TryGetValue(hashCode, out _peer))
-                                    _peer.TryDisconnectNow(conversationId);
-                            }
-                            else
-                            {
-                                _peer.TryDisconnectNow(conversationId);
-                            }
-                        }
-
+                        if (count <= 4 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
+                            continue;
+                        _peer.ReceiveUnreliable(_socketBuffer, count);
                         continue;
                     }
 
-                    if (_peer == null || hashCode != remoteEndPoint)
+                    if ((flag & (int)Sequenced) != 0)
                     {
-                        if (!_peers.TryGetValue(hashCode, out _peer))
-                        {
-                            if (count != 25 || _socketBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
-                                continue;
-                            var conversationId = ReadUnaligned<uint>(ref _socketBuffer[0]);
-                            _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _flushBuffer);
-                            _peers[hashCode] = _peer;
-                            if (_sentinel == null)
-                            {
-                                _sentinel = _peer;
-                            }
-                            else
-                            {
-                                _sentinel.Previous = _peer;
-                                _peer.Next = _sentinel;
-                                _sentinel = _peer;
-                            }
-                        }
+                        if (count <= 8 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
+                            continue;
+                        _peer.ReceiveSequenced(_socketBuffer, count);
+                        continue;
                     }
 
-                    _peer.Input(_socketBuffer, count, current);
+                    if ((flag & (int)Reliable) != 0)
+                    {
+                        if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
+                        {
+                            if (count == 8 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge && _socketBuffer[2] == (byte)Header.Disconnect && _socketBuffer[3] == (byte)Header.DisconnectAcknowledge)
+                            {
+                                var conversationId = As<byte, uint>(ref _socketBuffer[4]);
+                                if (_peer == null || hashCode != remoteEndPoint)
+                                {
+                                    if (_peers.TryGetValue(hashCode, out _peer))
+                                        _peer.TryDisconnectNow(conversationId);
+                                }
+                                else
+                                {
+                                    _peer.TryDisconnectNow(conversationId);
+                                }
+                            }
+
+                            continue;
+                        }
+
+                        if (_peer == null || hashCode != remoteEndPoint)
+                        {
+                            if (!_peers.TryGetValue(hashCode, out _peer))
+                            {
+                                if (count != 25 || _socketBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
+                                    continue;
+                                var conversationId = As<byte, uint>(ref _socketBuffer[0]);
+                                _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _flushBuffer);
+                                _peers[hashCode] = _peer;
+                                if (_sentinel == null)
+                                {
+                                    _sentinel = _peer;
+                                }
+                                else
+                                {
+                                    _sentinel.Previous = _peer;
+                                    _peer.Next = _sentinel;
+                                    _sentinel = _peer;
+                                }
+                            }
+                        }
+
+                        _peer.ReceiveReliable(_socketBuffer, count, current);
+                    }
                 }
                 finally
                 {
                     remoteEndPoint = hashCode;
                 }
-            } while (_socket.Poll(0, SelectMode.SelectRead));
+            } while (_socket.Available != 0 || _socket.Poll(0, SelectMode.SelectRead));
 
             var node = _sentinel;
             while (node != null)
@@ -441,7 +465,7 @@ namespace asphyxia
         {
             try
             {
-#if !UNITY_2021_3_OR_NEWER || NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER
                 _socket.SendTo(new ReadOnlySpan<byte>(buffer, length), SocketFlags.None, endPoint);
 #else
                 CopyBlock(ref _socketBuffer[0], ref *buffer, (uint)length);

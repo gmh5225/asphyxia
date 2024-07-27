@@ -40,7 +40,7 @@ namespace asphyxia
         /// <summary>
         ///     Kcp maximum transmission unit
         /// </summary>
-        public const int KCP_MAXIMUM_TRANSMISSION_UNIT = 1400;
+        public const int KCP_MAXIMUM_TRANSMISSION_UNIT = (int)MTU_DEF - sizeof(PacketFlag) - (int)REVERSED_HEAD - sizeof(Header);
 
         /// <summary>
         ///     Kcp window size

@@ -59,11 +59,12 @@ namespace asphyxia
                         case NetworkEventType.Connect:
                             connected2 = true;
                             peer2 = networkEvent.Peer;
-                            a.Service();
                             Console.WriteLine("Server Connect: " + networkEvent.Peer.Id);
                             break;
                         case NetworkEventType.Data:
-                            Console.WriteLine("Server Data: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
+                            Console.ForegroundColor = ConsoleColor.Cyan;
+                            Console.WriteLine($"{networkEvent.Packet.Flag}: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
+                            Console.ForegroundColor = ConsoleColor.White;
                             networkEvent.Packet.Dispose();
                             break;
                         case NetworkEventType.Disconnect:
@@ -87,7 +88,9 @@ namespace asphyxia
                             Console.WriteLine("Connect: " + networkEvent.Peer.Id);
                             break;
                         case NetworkEventType.Data:
-                            Console.WriteLine("Data: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine($"{networkEvent.Packet.Flag}: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
+                            Console.ForegroundColor = ConsoleColor.Cyan;
                             networkEvent.Packet.Dispose();
                             break;
                         case NetworkEventType.Disconnect:
@@ -105,7 +108,7 @@ namespace asphyxia
                 {
                     i++;
                     if (i < 10)
-                        peer?.Send(Encoding.UTF8.GetBytes($"server: {i}"));
+                        peer?.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"server: {i}"), PacketFlag.Reliable | PacketFlag.NoAllocate));
                 }
 
                 if (connected2)
@@ -117,9 +120,9 @@ namespace asphyxia
                     {
                         if (peer2 != null)
                         {
-                            for (var k = 0; k < 2; ++k)
+                            for (var k = 0; k < 1; ++k)
                             {
-                                peer2.Send(Encoding.UTF8.GetBytes($"client: {j}"));
+                                peer2.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"client: {j}"), PacketFlag.Sequenced | PacketFlag.NoAllocate));
                             }
                         }
                     }
