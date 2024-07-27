@@ -137,7 +137,7 @@ namespace KCP
             output.Output(data - (int)REVERSED_HEAD, size, current);
         }
 
-        public static IKCPCB* ikcp_create(uint conv)
+        public static IKCPCB* ikcp_create(byte conv)
         {
             var kcp = (IKCPCB*)ikcp_malloc(sizeof(IKCPCB));
             kcp->conv = conv;
@@ -631,8 +631,8 @@ namespace KCP
 
         public static int ikcp_input(IKCPCB* kcp, byte* data, int size)
         {
-            uint conv;
-            data = ikcp_decode32u(data, &conv);
+            byte conv;
+            data = ikcp_decode8u(data, &conv);
             if (conv != kcp->conv)
                 return -1;
             size -= (int)REVERSED_HEAD;
@@ -780,7 +780,7 @@ namespace KCP
         private static void ikcp_flush_internal(IKCPCB* kcp, byte* buffer, IKcpCallback output)
         {
             var current = kcp->current;
-            buffer = ikcp_encode32u(buffer, kcp->conv);
+            buffer = ikcp_encode8u(buffer, kcp->conv);
             var ptr = buffer;
             int size, i;
             IQUEUEHEAD* p;

@@ -18,6 +18,7 @@ using static System.Runtime.CompilerServices.Unsafe;
 #pragma warning disable CS8602
 #pragma warning disable CS8632
 
+// ReSharper disable ConvertToAutoPropertyWhenPossible
 // ReSharper disable ConvertIfStatementToSwitchStatement
 // ReSharper disable ConvertToAutoPropertyWithPrivateSetter
 // ReSharper disable PossibleNullReferenceException
@@ -53,6 +54,11 @@ namespace asphyxia
         ///     IPEndPoint
         /// </summary>
         public readonly IPEndPoint IPEndPoint;
+
+        /// <summary>
+        ///     Conversation id
+        /// </summary>
+        private readonly byte _conversationId;
 
         /// <summary>
         ///     Kcp
@@ -109,10 +115,11 @@ namespace asphyxia
         /// <param name="sendBuffer">Send buffer</param>
         /// <param name="flushBuffer">Flush buffer</param>
         /// <param name="state">State</param>
-        internal Peer(uint conversationId, Host host, uint id, EndPoint ipEndPoint, byte* sendBuffer, byte* flushBuffer, PeerState state = PeerState.None)
+        internal Peer(byte conversationId, Host host, uint id, EndPoint ipEndPoint, byte* sendBuffer, byte* flushBuffer, PeerState state = PeerState.None)
         {
             _host = host;
             Id = id;
+            _conversationId = conversationId;
             IPEndPoint = (IPEndPoint)ipEndPoint;
             _sendBuffer = sendBuffer;
             _flushBuffer = flushBuffer;
@@ -135,6 +142,11 @@ namespace asphyxia
         ///     Peer state
         /// </summary>
         public PeerState State => _state;
+
+        /// <summary>
+        ///     Session id
+        /// </summary>
+        public byte SessionId => _conversationId;
 
         /// <summary>
         ///     Smoothed round-trip time
@@ -173,14 +185,14 @@ namespace asphyxia
         {
             if (_state != Connected)
                 return;
-            var conversationId = As<byte, uint>(ref buffer[0]);
-            if (conversationId != _kcp.ConversationId)
+            var conversationId = buffer[0];
+            if (conversationId != _conversationId)
                 return;
-            var sendId = As<byte, uint>(ref buffer[4]);
-            if (_lastReceiveId >= sendId && _lastReceiveId != 0)
+            var sendId = As<byte, uint>(ref buffer[1]);
+            if (_lastReceiveId != 0 && (sendId <= _lastReceiveId || sendId - _lastReceiveId > 2147483647) && (sendId >= _lastReceiveId || _lastReceiveId - sendId <= 2147483647))
                 return;
             _lastReceiveId = sendId;
-            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 8, length - 8, Sequenced)));
+            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 5, length - 5, Sequenced)));
         }
 
         /// <summary>
@@ -192,10 +204,10 @@ namespace asphyxia
         {
             if (_state != Connected)
                 return;
-            var conversationId = As<byte, uint>(ref buffer[0]);
-            if (conversationId != _kcp.ConversationId)
+            var conversationId = buffer[0];
+            if (conversationId != _conversationId)
                 return;
-            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 4, length - 4, Unreliable)));
+            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 1, length - 1, Unreliable)));
         }
 
         /// <summary>
@@ -246,10 +258,10 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal int SendSequenced(byte* buffer, int length)
         {
-            *(uint*)_sendBuffer = _kcp.ConversationId;
-            *(uint*)(_sendBuffer + 4) = _lastSendId++;
-            CopyBlock(_sendBuffer + 8, buffer, (uint)length);
-            length += 9;
+            _sendBuffer[0] = _conversationId;
+            *(uint*)(_sendBuffer + 1) = _lastSendId++;
+            CopyBlock(_sendBuffer + 5, buffer, (uint)length);
+            length += 6;
             _sendBuffer[length - 1] = (byte)Sequenced;
             _host.Insert(IPEndPoint, _sendBuffer, length);
             return length;
@@ -262,9 +274,9 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal int SendUnreliable(byte* buffer, int length)
         {
-            *(uint*)_sendBuffer = _kcp.ConversationId;
-            CopyBlock(_sendBuffer + 4, buffer, (uint)length);
-            length += 5;
+            _sendBuffer[0] = _conversationId;
+            CopyBlock(_sendBuffer + 1, buffer, (uint)length);
+            length += 2;
             _sendBuffer[length - 1] = (byte)Unreliable;
             _host.Insert(IPEndPoint, _sendBuffer, length);
             return length;
@@ -308,7 +320,7 @@ namespace asphyxia
         /// </summary>
         internal void TryDisconnectNow(uint conversationId)
         {
-            if (_kcp.ConversationId != conversationId || _state == Disconnected)
+            if (_conversationId != conversationId || _state == Disconnected)
                 return;
             if (_state == Connected)
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
@@ -337,7 +349,7 @@ namespace asphyxia
         private void SendDisconnectNow()
         {
             _state = Disconnected;
-            var conv = _kcp.ConversationId;
+            var conv = _conversationId;
             _kcp.Flush(_flushBuffer);
             _kcp.Dispose();
             _sendBuffer[0] = (byte)Header.Disconnect;

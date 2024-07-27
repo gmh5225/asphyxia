@@ -268,9 +268,9 @@ namespace asphyxia
                 return peer;
             if (_peers.Count >= _maxPeers)
                 return null;
-            var buffer = stackalloc byte[4];
-            RandomNumberGenerator.Fill(new Span<byte>(buffer, 4));
-            var conversationId = *(uint*)buffer;
+            var buffer = stackalloc byte[1];
+            RandomNumberGenerator.Fill(new Span<byte>(buffer, 1));
+            var conversationId = *buffer;
             peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, _flushBuffer, PeerState.Connecting);
             _peers[hashCode] = peer;
             _peer ??= peer;
@@ -356,7 +356,7 @@ namespace asphyxia
                     int flag = _socketBuffer[count];
                     if ((flag & (int)Unreliable) != 0)
                     {
-                        if (count <= 4 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
+                        if (count <= 1 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
                             continue;
                         _peer.ReceiveUnreliable(_socketBuffer, count);
                         continue;
@@ -364,7 +364,7 @@ namespace asphyxia
 
                     if ((flag & (int)Sequenced) != 0)
                     {
-                        if (count <= 8 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
+                        if (count <= 5 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
                             continue;
                         _peer.ReceiveSequenced(_socketBuffer, count);
                         continue;
@@ -395,9 +395,9 @@ namespace asphyxia
                         {
                             if (!_peers.TryGetValue(hashCode, out _peer))
                             {
-                                if (count != 25 || _socketBuffer[24] != (byte)Header.Connect || _peers.Count >= _maxPeers)
+                                if (count != 22 || _socketBuffer[21] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                                     continue;
-                                var conversationId = As<byte, uint>(ref _socketBuffer[0]);
+                                var conversationId = _socketBuffer[0];
                                 _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _flushBuffer);
                                 _peers[hashCode] = _peer;
                                 if (_sentinel == null)

@@ -52,7 +52,7 @@ namespace KCP
         /// </summary>
         /// <param name="conv">ConversationId</param>
         /// <param name="output">Output</param>
-        public Kcp(uint conv, IKcpCallback output)
+        public Kcp(byte conv, IKcpCallback output)
         {
             _kcp = ikcp_create(conv);
             _output = output;
@@ -66,7 +66,7 @@ namespace KCP
         /// <summary>
         ///     Conversation id
         /// </summary>
-        public uint ConversationId => _kcp->conv;
+        public byte ConversationId => _kcp->conv;
 
         /// <summary>
         ///     Maximum transmission unit
