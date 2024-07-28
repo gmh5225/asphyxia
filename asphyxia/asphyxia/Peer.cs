@@ -266,7 +266,7 @@ namespace asphyxia
         internal int SendSequenced(byte* buffer, int length)
         {
             _managedBuffer[0] = _conversationId;
-            WriteUnaligned(ref _managedBuffer[1], _lastSendSequence++);
+            As<byte, ushort>(ref _managedBuffer[1]) = _lastSendSequence++;
             CopyBlock(ref _managedBuffer[3], ref *buffer, (uint)length);
             length += 4;
             _managedBuffer[length - 1] = (byte)Sequenced;
