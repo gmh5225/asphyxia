@@ -361,40 +361,31 @@ namespace asphyxia
                         {
                             if (count == 3 && _managedBuffer[0] == (byte)Header.Disconnect && _managedBuffer[1] == (byte)Header.DisconnectAcknowledge)
                             {
+                                if ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer))
+                                    continue;
                                 var conversationId = _managedBuffer[2];
-                                if (_peer == null || hashCode != remoteEndPoint)
-                                {
-                                    if (_peers.TryGetValue(hashCode, out _peer))
-                                        _peer.TryDisconnectNow(conversationId);
-                                }
-                                else
-                                {
-                                    _peer.TryDisconnectNow(conversationId);
-                                }
+                                _peer.TryDisconnectNow(conversationId);
                             }
 
                             continue;
                         }
 
-                        if (_peer == null || hashCode != remoteEndPoint)
+                        if ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer))
                         {
-                            if (!_peers.TryGetValue(hashCode, out _peer))
+                            if (count != 22 || _managedBuffer[21] != (byte)Header.Connect || _peers.Count >= _maxPeers)
+                                continue;
+                            var conversationId = _managedBuffer[0];
+                            _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _managedBuffer, _unmanagedBuffer, current);
+                            _peers[hashCode] = _peer;
+                            if (_sentinel == null)
                             {
-                                if (count != 22 || _managedBuffer[21] != (byte)Header.Connect || _peers.Count >= _maxPeers)
-                                    continue;
-                                var conversationId = _managedBuffer[0];
-                                _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _managedBuffer, _unmanagedBuffer, current);
-                                _peers[hashCode] = _peer;
-                                if (_sentinel == null)
-                                {
-                                    _sentinel = _peer;
-                                }
-                                else
-                                {
-                                    _sentinel.Previous = _peer;
-                                    _peer.Next = _sentinel;
-                                    _sentinel = _peer;
-                                }
+                                _sentinel = _peer;
+                            }
+                            else
+                            {
+                                _sentinel.Previous = _peer;
+                                _peer.Next = _sentinel;
+                                _sentinel = _peer;
                             }
                         }
 
