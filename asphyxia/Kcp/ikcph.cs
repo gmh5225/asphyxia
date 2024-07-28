@@ -14,9 +14,9 @@ using System.Runtime.InteropServices;
 
 namespace KCP
 {
-    public unsafe interface IKcpCallback
+    public interface IKcpCallback
     {
-        void Output(byte* buffer, int length, uint current);
+        void Output(int length, uint current);
     }
 
     internal unsafe struct IQUEUEHEAD

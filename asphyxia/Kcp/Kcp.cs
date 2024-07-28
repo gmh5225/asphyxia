@@ -556,7 +556,7 @@ namespace KCP
         /// </summary>
         /// <param name="current">Timestamp</param>
         /// <param name="buffer">Buffer</param>
-        public void Update(uint current, byte* buffer) => ikcp_update(_kcp, current, buffer, _output);
+        public void Update(uint current, byte[] buffer) => ikcp_update(_kcp, current, buffer, _output);
 
         /// <summary>
         ///     Check
@@ -569,7 +569,7 @@ namespace KCP
         ///     Flush
         /// </summary>
         /// <param name="buffer">Buffer</param>
-        public void Flush(byte* buffer) => ikcp_flush(_kcp, buffer, _output);
+        public void Flush(byte[] buffer) => ikcp_flush(_kcp, buffer, _output);
 
         /// <summary>
         ///     Set maximum transmission unit

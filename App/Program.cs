@@ -111,7 +111,7 @@ namespace asphyxia
                     {
                         for (var k = 0; k < 1; k++)
                         {
-                            peer?.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"server: {i} {k}"), PacketFlag.Sequenced | PacketFlag.NoAllocate));
+                            peer?.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"server: {i}"), PacketFlag.Reliable | PacketFlag.NoAllocate));
                         }
                     }
 

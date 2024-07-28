@@ -44,24 +44,14 @@ namespace asphyxia
         private Socket? _socket;
 
         /// <summary>
-        ///     Socket buffer
+        ///     Managed buffer
         /// </summary>
-        private readonly byte[] _socketBuffer = new byte[SOCKET_BUFFER_SIZE];
+        private readonly byte[] _managedBuffer = new byte[KCP_FLUSH_BUFFER_SIZE];
 
         /// <summary>
-        ///     Receive buffer
+        ///     Unmanaged buffer
         /// </summary>
-        private byte* _receiveBuffer;
-
-        /// <summary>
-        ///     Send buffer
-        /// </summary>
-        private byte* _sendBuffer;
-
-        /// <summary>
-        ///     Flush buffer
-        /// </summary>
-        private byte* _flushBuffer;
+        private byte* _unmanagedBuffer;
 
         /// <summary>
         ///     Max peers
@@ -139,9 +129,7 @@ namespace asphyxia
                     return;
                 _socket.Close();
                 _socket = null;
-                FreeHGlobal((nint)_receiveBuffer);
-                FreeHGlobal((nint)_sendBuffer);
-                FreeHGlobal((nint)_flushBuffer);
+                FreeHGlobal((nint)_unmanagedBuffer);
                 _maxPeers = 0;
                 _id = 0;
                 _idPool.Clear();
@@ -226,9 +214,7 @@ namespace asphyxia
                 _peers.EnsureCapacity(maxPeers);
                 var maxReceiveEvents = maxPeers << 1;
                 _networkEvents.EnsureCapacity(maxReceiveEvents);
-                _receiveBuffer = (byte*)AllocHGlobal(KCP_MESSAGE_SIZE);
-                _sendBuffer = (byte*)AllocHGlobal(KCP_MESSAGE_SIZE);
-                _flushBuffer = (byte*)AllocHGlobal(KCP_FLUSH_BUFFER_SIZE);
+                _unmanagedBuffer = (byte*)AllocHGlobal(KCP_FLUSH_BUFFER_SIZE);
                 _maxPeers = maxPeers;
                 return SocketError.Success;
             }
@@ -270,7 +256,7 @@ namespace asphyxia
             var buffer = stackalloc byte[1];
             RandomNumberGenerator.Fill(new Span<byte>(buffer, 1));
             var conversationId = *buffer;
-            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _sendBuffer, _flushBuffer, PeerState.Connecting);
+            peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, remoteEndPoint, _managedBuffer, _unmanagedBuffer, Current, PeerState.Connecting);
             _peers[hashCode] = peer;
             _peer ??= peer;
             if (_sentinel == null)
@@ -320,8 +306,8 @@ namespace asphyxia
         {
             if (remoteEndPoint.AddressFamily != _socket.AddressFamily && !_socket.DualMode)
                 return;
-            _sendBuffer[0] = (byte)Header.Ping;
-            Insert(remoteEndPoint, _sendBuffer, 1);
+            _managedBuffer[0] = (byte)Header.Ping;
+            Insert(remoteEndPoint, 1);
         }
 
         /// <summary>
@@ -341,7 +327,7 @@ namespace asphyxia
                 int count;
                 try
                 {
-                    count = _socket.ReceiveFrom(_socketBuffer, 0, SOCKET_BUFFER_SIZE, SocketFlags.None, ref _remoteEndPoint);
+                    count = _socket.ReceiveFrom(_managedBuffer, 0, SOCKET_BUFFER_SIZE, SocketFlags.None, ref _remoteEndPoint);
                 }
                 catch
                 {
@@ -352,12 +338,12 @@ namespace asphyxia
                 try
                 {
                     count--;
-                    int flag = _socketBuffer[count];
+                    int flag = _managedBuffer[count];
                     if ((flag & (int)Unreliable) != 0)
                     {
                         if (count <= 1 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
                             continue;
-                        _peer.ReceiveUnreliable(_socketBuffer, count);
+                        _peer.ReceiveUnreliable(_managedBuffer, count);
                         continue;
                     }
 
@@ -365,7 +351,7 @@ namespace asphyxia
                     {
                         if (count <= 3 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
                             continue;
-                        _peer.ReceiveSequenced(_socketBuffer, count);
+                        _peer.ReceiveSequenced(_managedBuffer, count);
                         continue;
                     }
 
@@ -373,9 +359,9 @@ namespace asphyxia
                     {
                         if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
                         {
-                            if (count == 3 && _socketBuffer[0] == (byte)Header.Disconnect && _socketBuffer[1] == (byte)Header.DisconnectAcknowledge)
+                            if (count == 3 && _managedBuffer[0] == (byte)Header.Disconnect && _managedBuffer[1] == (byte)Header.DisconnectAcknowledge)
                             {
-                                var conversationId = _socketBuffer[2];
+                                var conversationId = _managedBuffer[2];
                                 if (_peer == null || hashCode != remoteEndPoint)
                                 {
                                     if (_peers.TryGetValue(hashCode, out _peer))
@@ -394,10 +380,10 @@ namespace asphyxia
                         {
                             if (!_peers.TryGetValue(hashCode, out _peer))
                             {
-                                if (count != 22 || _socketBuffer[21] != (byte)Header.Connect || _peers.Count >= _maxPeers)
+                                if (count != 22 || _managedBuffer[21] != (byte)Header.Connect || _peers.Count >= _maxPeers)
                                     continue;
-                                var conversationId = _socketBuffer[0];
-                                _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _sendBuffer, _flushBuffer);
+                                var conversationId = _managedBuffer[0];
+                                _peer = new Peer(conversationId, this, _idPool.TryDequeue(out var id) ? id : _id++, _remoteEndPoint, _managedBuffer, _unmanagedBuffer, current);
                                 _peers[hashCode] = _peer;
                                 if (_sentinel == null)
                                 {
@@ -412,7 +398,7 @@ namespace asphyxia
                             }
                         }
 
-                        _peer.ReceiveReliable(_socketBuffer, count, current);
+                        _peer.ReceiveReliable(_managedBuffer, count, current);
                     }
                 }
                 finally
@@ -426,7 +412,7 @@ namespace asphyxia
             {
                 var temp = node;
                 node = node.Next;
-                temp.Service(current, _receiveBuffer);
+                temp.Service(current);
             }
         }
 
@@ -458,18 +444,12 @@ namespace asphyxia
         ///     Insert
         /// </summary>
         /// <param name="endPoint">IPEndPoint</param>
-        /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal void Insert(EndPoint endPoint, byte* buffer, int length)
+        internal void Insert(EndPoint endPoint, int length)
         {
             try
             {
-#if NET6_0_OR_GREATER
-                _socket.SendTo(new ReadOnlySpan<byte>(buffer, length), SocketFlags.None, endPoint);
-#else
-                CopyBlock(ref _socketBuffer[0], ref *buffer, (uint)length);
-                _socket.SendTo(_socketBuffer, 0, length, SocketFlags.None, endPoint);
-#endif
+                _socket.SendTo(_managedBuffer, 0, length, SocketFlags.None, endPoint);
             }
             catch
             {

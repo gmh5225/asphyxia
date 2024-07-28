@@ -9,7 +9,6 @@ using System;
 using System.Net;
 using KCP;
 using static asphyxia.Settings;
-using static asphyxia.Time;
 using static asphyxia.PacketFlag;
 using static asphyxia.PeerState;
 using static asphyxia.Header;
@@ -66,14 +65,14 @@ namespace asphyxia
         private readonly Kcp _kcp;
 
         /// <summary>
-        ///     Send buffer
+        ///     Managed buffer
         /// </summary>
-        private readonly byte* _sendBuffer;
+        private readonly byte[] _managedBuffer;
 
         /// <summary>
-        ///     Flush buffer
+        ///     Unmanaged buffer
         /// </summary>
-        private readonly byte* _flushBuffer;
+        private readonly byte* _unmanagedBuffer;
 
         /// <summary>
         ///     Last send sequence number
@@ -112,23 +111,23 @@ namespace asphyxia
         /// <param name="host">Host</param>
         /// <param name="id">Id</param>
         /// <param name="ipEndPoint">IPEndPoint</param>
-        /// <param name="sendBuffer">Send buffer</param>
-        /// <param name="flushBuffer">Flush buffer</param>
+        /// <param name="managedBuffer">Managed buffer</param>
+        /// <param name="unmanagedBuffer">Unmanaged buffer</param>
+        /// <param name="current">Timestamp</param>
         /// <param name="state">State</param>
-        internal Peer(byte conversationId, Host host, uint id, EndPoint ipEndPoint, byte* sendBuffer, byte* flushBuffer, PeerState state = PeerState.None)
+        internal Peer(byte conversationId, Host host, uint id, EndPoint ipEndPoint, byte[] managedBuffer, byte* unmanagedBuffer, uint current, PeerState state = PeerState.None)
         {
             _host = host;
             Id = id;
             _conversationId = conversationId;
             IPEndPoint = (IPEndPoint)ipEndPoint;
-            _sendBuffer = sendBuffer;
-            _flushBuffer = flushBuffer;
+            _managedBuffer = managedBuffer;
+            _unmanagedBuffer = unmanagedBuffer;
             _state = state;
             _kcp = new Kcp(conversationId, this);
             _kcp.SetNoDelay(KCP_NO_DELAY, KCP_FLUSH_INTERVAL, KCP_FAST_RESEND, KCP_NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(KCP_WINDOW_SIZE, KCP_WINDOW_SIZE);
             _kcp.SetMtu(KCP_MAXIMUM_TRANSMISSION_UNIT);
-            var current = Current;
             _lastSendTimestamp = current;
             _lastReceiveTimestamp = current;
         }
@@ -173,10 +172,21 @@ namespace asphyxia
         /// <summary>
         ///     Output
         /// </summary>
-        /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
         /// <param name="current">Timestamp</param>
-        void IKcpCallback.Output(byte* buffer, int length, uint current) => Output(buffer, length, current);
+        void IKcpCallback.Output(int length, uint current)
+        {
+            _lastSendTimestamp = current;
+            _managedBuffer[length] = (byte)Reliable;
+            _host.Insert(IPEndPoint, length + 1);
+            if (_disconnecting && _kcp.SendQueueCount == 0)
+            {
+                _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
+                _state = Disconnected;
+                _kcp.Dispose();
+                _host.Remove(IPEndPoint.GetHashCode(), this);
+            }
+        }
 
         /// <summary>
         ///     Receive
@@ -228,26 +238,6 @@ namespace asphyxia
         }
 
         /// <summary>
-        ///     Output
-        /// </summary>
-        /// <param name="buffer">Buffer</param>
-        /// <param name="length">Length</param>
-        /// <param name="current">Timestamp</param>
-        private void Output(byte* buffer, int length, uint current)
-        {
-            _lastSendTimestamp = current;
-            buffer[length] = (byte)Reliable;
-            _host.Insert(IPEndPoint, buffer, length + 1);
-            if (_disconnecting && _kcp.SendQueueCount == 0)
-            {
-                _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
-                _state = Disconnected;
-                _kcp.Dispose();
-                _host.Remove(IPEndPoint.GetHashCode(), this);
-            }
-        }
-
-        /// <summary>
         ///     Send
         /// </summary>
         /// <param name="buffer">Buffer</param>
@@ -263,9 +253,9 @@ namespace asphyxia
         /// <returns>Send bytes</returns>
         internal int SendReliable(byte* buffer, int length)
         {
-            _sendBuffer[0] = (byte)Data;
-            CopyBlock(_sendBuffer + 1, buffer, (uint)length);
-            return KcpSend(_sendBuffer, length + 1);
+            _unmanagedBuffer[0] = (byte)Data;
+            CopyBlock(_unmanagedBuffer + 1, buffer, (uint)length);
+            return KcpSend(_unmanagedBuffer, length + 1);
         }
 
         /// <summary>
@@ -275,12 +265,12 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal int SendSequenced(byte* buffer, int length)
         {
-            _sendBuffer[0] = _conversationId;
-            *(ushort*)(_sendBuffer + 1) = _lastSendSequence++;
-            CopyBlock(_sendBuffer + 3, buffer, (uint)length);
+            _managedBuffer[0] = _conversationId;
+            WriteUnaligned(ref _managedBuffer[1], _lastSendSequence++);
+            CopyBlock(ref _managedBuffer[3], ref *buffer, (uint)length);
             length += 4;
-            _sendBuffer[length - 1] = (byte)Sequenced;
-            _host.Insert(IPEndPoint, _sendBuffer, length);
+            _managedBuffer[length - 1] = (byte)Sequenced;
+            _host.Insert(IPEndPoint, length);
             return length;
         }
 
@@ -291,11 +281,11 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal int SendUnreliable(byte* buffer, int length)
         {
-            _sendBuffer[0] = _conversationId;
-            CopyBlock(_sendBuffer + 1, buffer, (uint)length);
+            _managedBuffer[0] = _conversationId;
+            CopyBlock(ref _managedBuffer[1], ref *buffer, (uint)length);
             length += 2;
-            _sendBuffer[length - 1] = (byte)Unreliable;
-            _host.Insert(IPEndPoint, _sendBuffer, length);
+            _managedBuffer[length - 1] = (byte)Unreliable;
+            _host.Insert(IPEndPoint, length);
             return length;
         }
 
@@ -366,13 +356,13 @@ namespace asphyxia
         private void SendDisconnectNow()
         {
             _state = Disconnected;
-            _kcp.Flush(_flushBuffer);
+            _kcp.Flush(_managedBuffer);
             _kcp.Dispose();
-            _sendBuffer[0] = (byte)Header.Disconnect;
-            _sendBuffer[1] = (byte)DisconnectAcknowledge;
-            _sendBuffer[2] = _conversationId;
-            _sendBuffer[3] = (byte)Reliable;
-            _host.Insert(IPEndPoint, _sendBuffer, 4);
+            _managedBuffer[0] = (byte)Header.Disconnect;
+            _managedBuffer[1] = (byte)DisconnectAcknowledge;
+            _managedBuffer[2] = _conversationId;
+            _managedBuffer[3] = (byte)Reliable;
+            _host.Insert(IPEndPoint, 4);
             _host.Remove(IPEndPoint.GetHashCode(), this);
         }
 
@@ -384,8 +374,8 @@ namespace asphyxia
             if (_state == Connected)
             {
                 _state = Disconnecting;
-                _sendBuffer[0] = (byte)Header.Disconnect;
-                KcpSend(_sendBuffer, 1);
+                _unmanagedBuffer[0] = (byte)Header.Disconnect;
+                KcpSend(_unmanagedBuffer, 1);
                 return;
             }
 
@@ -414,23 +404,16 @@ namespace asphyxia
             if (_state != Connected)
                 return;
             _state = Disconnecting;
-            _sendBuffer[0] = (byte)Header.Disconnect;
-            KcpSend(_sendBuffer, 1);
+            _unmanagedBuffer[0] = (byte)Header.Disconnect;
+            KcpSend(_unmanagedBuffer, 1);
         }
 
         /// <summary>
         ///     Service
         /// </summary>
         /// <param name="current">Timestamp</param>
-        /// <param name="buffer">Receive buffer</param>
-        internal void Service(uint current, byte* buffer)
+        internal void Service(uint current)
         {
-            if (_kcp.State == -1)
-            {
-                DisconnectInternal();
-                return;
-            }
-
             if (_lastReceiveTimestamp + PEER_RECEIVE_TIMEOUT <= current)
             {
                 Timeout();
@@ -439,7 +422,7 @@ namespace asphyxia
 
             while (true)
             {
-                var received = _kcp.Receive(buffer, KCP_MESSAGE_SIZE);
+                var received = _kcp.Receive(_unmanagedBuffer, KCP_MESSAGE_SIZE);
                 if (received < 0)
                 {
                     if (received != -1)
@@ -451,7 +434,7 @@ namespace asphyxia
                     break;
                 }
 
-                var header = buffer[0];
+                var header = _unmanagedBuffer[0];
                 switch (header)
                 {
                     case (byte)Ping:
@@ -462,16 +445,16 @@ namespace asphyxia
                         if (_state != PeerState.None)
                             goto error;
                         _state = ConnectAcknowledging;
-                        buffer[0] = (byte)ConnectAcknowledge;
-                        KcpSend(buffer, 1);
+                        _unmanagedBuffer[0] = (byte)ConnectAcknowledge;
+                        KcpSend(_unmanagedBuffer, 1);
                         continue;
                     case (byte)ConnectAcknowledge:
                         if (_state != Connecting)
                             goto error;
                         _state = Connected;
                         _host.Insert(new NetworkEvent(NetworkEventType.Connect, this));
-                        buffer[0] = (byte)ConnectEstablish;
-                        KcpSend(buffer, 1);
+                        _unmanagedBuffer[0] = (byte)ConnectEstablish;
+                        KcpSend(_unmanagedBuffer, 1);
                         continue;
                     case (byte)ConnectEstablish:
                         if (_state != ConnectAcknowledging)
@@ -482,15 +465,15 @@ namespace asphyxia
                     case (byte)Data:
                         if (_state != Connected && _state != Disconnecting)
                             goto error;
-                        _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer + 1, received - 1, Reliable)));
+                        _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(_unmanagedBuffer + 1, received - 1, Reliable)));
                         continue;
                     case (byte)Header.Disconnect:
                         if (_state != Connected)
                             goto error;
                         _state = Disconnected;
                         _disconnecting = true;
-                        buffer[0] = (byte)DisconnectAcknowledge;
-                        KcpSend(buffer, 1);
+                        _unmanagedBuffer[0] = (byte)DisconnectAcknowledge;
+                        KcpSend(_unmanagedBuffer, 1);
                         continue;
                     case (byte)DisconnectAcknowledge:
                         if (_state != Disconnecting)
@@ -509,14 +492,14 @@ namespace asphyxia
             if (_state == Connected && _lastSendTimestamp + PEER_PING_INTERVAL <= current)
             {
                 _lastSendTimestamp = current;
-                buffer[0] = (byte)Ping;
-                KcpSend(buffer, 1);
+                _unmanagedBuffer[0] = (byte)Ping;
+                KcpSend(_unmanagedBuffer, 1);
             }
         }
 
         /// <summary>
         ///     Update
         /// </summary>
-        internal void Update(uint current) => _kcp.Update(current, _flushBuffer);
+        internal void Update(uint current) => _kcp.Update(current, _managedBuffer);
     }
 }
