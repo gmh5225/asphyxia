@@ -123,7 +123,7 @@ namespace asphyxia
                             Console.WriteLine($"Connected: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}]");
                             _peers[networkEvent.Peer.IPEndPoint] = networkEvent.Peer;
                             var dataPacket = networkEvent.Peer.IPEndPoint.CreateDataPacket(1);
-                            ((byte*)dataPacket.Data)[0] = 0;
+                            dataPacket.Data[0] = 0;
                             _outgoings.Enqueue(new NetworkOutgoing(networkEvent.Peer, dataPacket));
                             continue;
                         case NetworkEventType.Data:
@@ -151,7 +151,7 @@ namespace asphyxia
                             Console.WriteLine($"Data: [{networkEvent.Peer.Id}] [{networkEvent.Peer.IPEndPoint}] to [{peer.Id}] [{peer.IPEndPoint}]");
                             packet.Dispose();
                             packet = networkEvent.Peer.IPEndPoint.CreateDataPacket(1);
-                            ((byte*)packet.Data)[0] = 1;
+                            packet.Data[0] = 1;
                             var outgoing = new NetworkOutgoing(peer, packet);
                             _outgoings.Enqueue(outgoing);
                             continue;

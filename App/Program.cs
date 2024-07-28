@@ -63,7 +63,7 @@ namespace asphyxia
                             break;
                         case NetworkEventType.Data:
                             Console.ForegroundColor = ConsoleColor.Cyan;
-                            Console.WriteLine($"{networkEvent.Packet.Flag}: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
+                            Console.WriteLine($"{networkEvent.Packet.Flags}: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
                             Console.ForegroundColor = ConsoleColor.White;
                             networkEvent.Packet.Dispose();
                             break;
@@ -89,7 +89,7 @@ namespace asphyxia
                             break;
                         case NetworkEventType.Data:
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"{networkEvent.Packet.Flag}: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
+                            Console.WriteLine($"{networkEvent.Packet.Flags}: " + Encoding.UTF8.GetString(networkEvent.Packet.AsSpan()));
                             Console.ForegroundColor = ConsoleColor.White;
                             networkEvent.Packet.Dispose();
                             break;
@@ -109,9 +109,19 @@ namespace asphyxia
                     i++;
                     if (i < 10)
                     {
-                        for (var k = 0; k < 1; k++)
+                        if (peer != null)
                         {
-                            peer?.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"server: {i}"), PacketFlag.Reliable | PacketFlag.NoAllocate));
+                            for (var k = 0; k < 1; k++)
+                            {
+                                unsafe
+                                {
+                                    var data = Encoding.UTF8.GetBytes($"server: {i}");
+                                    fixed (byte* buffer = data)
+                                    {
+                                        peer.Send(DataPacket.Create(buffer, data.Length, PacketFlag.Reliable | PacketFlag.NoAllocate));
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -124,7 +134,14 @@ namespace asphyxia
                         {
                             for (var k = 0; k < 1; ++k)
                             {
-                                peer2.Send(DataPacket.Create(Encoding.UTF8.GetBytes($"client: {j}"), PacketFlag.Sequenced | PacketFlag.NoAllocate));
+                                unsafe
+                                {
+                                    var data = Encoding.UTF8.GetBytes($"client: {j}");
+                                    fixed (byte* buffer = data)
+                                    {
+                                        peer2.Send(DataPacket.Create(buffer, data.Length, PacketFlag.Reliable | PacketFlag.NoAllocate));
+                                    }
+                                }
                             }
                         }
                     }

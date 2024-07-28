@@ -338,8 +338,8 @@ namespace asphyxia
                 try
                 {
                     count--;
-                    int flag = _managedBuffer[count];
-                    if ((flag & (int)Unreliable) != 0)
+                    int flags = _managedBuffer[count];
+                    if ((flags & (int)Unreliable) != 0)
                     {
                         if (count <= 1 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
                             continue;
@@ -347,7 +347,7 @@ namespace asphyxia
                         continue;
                     }
 
-                    if ((flag & (int)Sequenced) != 0)
+                    if ((flags & (int)Sequenced) != 0)
                     {
                         if (count <= 3 || ((_peer == null || hashCode != remoteEndPoint) && !_peers.TryGetValue(hashCode, out _peer)))
                             continue;
@@ -355,7 +355,7 @@ namespace asphyxia
                         continue;
                     }
 
-                    if ((flag & (int)Reliable) != 0)
+                    if ((flags & (int)Reliable) != 0)
                     {
                         if (count < (int)REVERSED_HEAD + (int)OVERHEAD)
                         {

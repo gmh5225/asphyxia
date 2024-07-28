@@ -298,13 +298,13 @@ namespace asphyxia
         {
             if (_state != Connected)
                 return -1;
-            var flag = (int)packet.Flag;
-            if ((flag & (int)Reliable) != 0)
-                return SendReliable((byte*)packet.Data, packet.Length);
-            if ((flag & (int)Sequenced) != 0)
-                return SendSequenced((byte*)packet.Data, packet.Length);
-            if ((flag & (int)Unreliable) != 0)
-                return SendUnreliable((byte*)packet.Data, packet.Length);
+            var flags = (int)packet.Flags;
+            if ((flags & (int)Reliable) != 0)
+                return SendReliable(packet.Data, packet.Length);
+            if ((flags & (int)Sequenced) != 0)
+                return SendSequenced(packet.Data, packet.Length);
+            if ((flags & (int)Unreliable) != 0)
+                return SendUnreliable(packet.Data, packet.Length);
             return -1;
         }
 
