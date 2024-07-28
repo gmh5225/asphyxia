@@ -93,7 +93,6 @@ namespace KCP
     [StructLayout(LayoutKind.Sequential)]
     internal unsafe struct IKCPCB
     {
-        public byte conv;
         public uint mtu, mss;
         public int state;
         public uint snd_una, snd_nxt, rcv_nxt;

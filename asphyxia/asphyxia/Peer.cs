@@ -54,10 +54,32 @@ namespace asphyxia
         /// </summary>
         public readonly IPEndPoint IPEndPoint;
 
+#if NET8_0_OR_GREATER
         /// <summary>
-        ///     Conversation id
+        ///     SocketAddress
         /// </summary>
-        private readonly byte _conversationId;
+        private readonly SocketAddress _socketAddress;
+#endif
+
+        /// <summary>
+        ///     Remote endPoint
+        /// </summary>
+        private
+#if NET8_0_OR_GREATER
+            SocketAddress EndPoint => _socketAddress;
+#else
+            EndPoint EndPoint => IPEndPoint;
+#endif
+
+        /// <summary>
+        ///     HashCode
+        /// </summary>
+        private readonly int _hashCode;
+
+        /// <summary>
+        ///     Session id
+        /// </summary>
+        private readonly byte _sessionId;
 
         /// <summary>
         ///     Kcp
@@ -104,10 +126,24 @@ namespace asphyxia
         /// </summary>
         private bool _disconnecting;
 
+#if NET8_0_OR_GREATER
         /// <summary>
         ///     Structure
         /// </summary>
-        /// <param name="conversationId">ConversationId</param>
+        /// <param name="sessionId">SessionId</param>
+        /// <param name="host">Host</param>
+        /// <param name="id">Id</param>
+        /// <param name="ipEndPoint">IPEndPoint</param>
+        /// <param name="socketAddress">SocketAddress</param>
+        /// <param name="managedBuffer">Managed buffer</param>
+        /// <param name="unmanagedBuffer">Unmanaged buffer</param>
+        /// <param name="current">Timestamp</param>
+        /// <param name="state">State</param>
+#else
+        /// <summary>
+        ///     Structure
+        /// </summary>
+        /// <param name="sessionId">SessionId</param>
         /// <param name="host">Host</param>
         /// <param name="id">Id</param>
         /// <param name="ipEndPoint">IPEndPoint</param>
@@ -115,16 +151,25 @@ namespace asphyxia
         /// <param name="unmanagedBuffer">Unmanaged buffer</param>
         /// <param name="current">Timestamp</param>
         /// <param name="state">State</param>
-        internal Peer(byte conversationId, Host host, uint id, EndPoint ipEndPoint, byte[] managedBuffer, byte* unmanagedBuffer, uint current, PeerState state = PeerState.None)
+#endif
+        internal Peer(byte sessionId, Host host, uint id, EndPoint ipEndPoint,
+#if NET8_0_OR_GREATER
+            SocketAddress socketAddress,
+#endif
+            byte[] managedBuffer, byte* unmanagedBuffer, uint current, PeerState state = PeerState.None)
         {
             _host = host;
             Id = id;
-            _conversationId = conversationId;
             IPEndPoint = (IPEndPoint)ipEndPoint;
+#if NET8_0_OR_GREATER
+            _socketAddress = socketAddress;
+#endif
+            _hashCode = EndPoint.GetHashCode();
+            _sessionId = sessionId;
             _managedBuffer = managedBuffer;
             _unmanagedBuffer = unmanagedBuffer;
             _state = state;
-            _kcp = new Kcp(conversationId, this);
+            _kcp = new Kcp(this);
             _kcp.SetNoDelay(KCP_NO_DELAY, KCP_FLUSH_INTERVAL, KCP_FAST_RESEND, KCP_NO_CONGESTION_WINDOW);
             _kcp.SetWindowSize(KCP_WINDOW_SIZE, KCP_WINDOW_SIZE);
             _kcp.SetMtu(KCP_MAXIMUM_TRANSMISSION_UNIT);
@@ -162,7 +207,7 @@ namespace asphyxia
         /// <summary>
         ///     Session id
         /// </summary>
-        public byte SessionId => _conversationId;
+        public byte SessionId => _sessionId;
 
         /// <summary>
         ///     Smoothed round-trip time
@@ -176,29 +221,27 @@ namespace asphyxia
         /// <param name="current">Timestamp</param>
         void IKcpCallback.Output(int length, uint current)
         {
+            _managedBuffer[0] = _sessionId;
             _lastSendTimestamp = current;
             _managedBuffer[length] = (byte)Reliable;
-            _host.Insert(IPEndPoint, length + 1);
+            _host.Insert(EndPoint, length + 1);
             if (_disconnecting && _kcp.SendQueueCount == 0)
             {
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
                 _state = Disconnected;
                 _kcp.Dispose();
-                _host.Remove(IPEndPoint.GetHashCode(), this);
+                _host.Remove(_hashCode, this);
             }
         }
 
         /// <summary>
         ///     Receive
         /// </summary>
-        /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
         /// <param name="current">Timestamp</param>
-        internal void ReceiveReliable(byte[] buffer, int length, uint current)
+        internal void ReceiveReliable(int length, uint current)
         {
-            if (_kcp.Input(buffer, length) != 0)
-                return;
-            if (_state != Connected)
+            if (_managedBuffer[0] != _sessionId || _kcp.Input(_managedBuffer, length) != 0 || _state != Connected)
                 return;
             _lastReceiveTimestamp = current;
         }
@@ -206,35 +249,27 @@ namespace asphyxia
         /// <summary>
         ///     Receive
         /// </summary>
-        /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal void ReceiveSequenced(byte[] buffer, int length)
+        internal void ReceiveSequenced(int length)
         {
-            if (_state != Connected)
+            if (_state != Connected || _managedBuffer[0] != _sessionId)
                 return;
-            var conversationId = buffer[0];
-            if (conversationId != _conversationId)
-                return;
-            var sendSequence = As<byte, ushort>(ref buffer[1]);
+            var sendSequence = As<byte, ushort>(ref _managedBuffer[1]);
             if (sendSequence <= _lastReceiveSequence && _lastReceiveSequence - sendSequence <= 32767)
                 return;
             _lastReceiveSequence = sendSequence;
-            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 3, length - 3, Sequenced)));
+            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(_managedBuffer, 3, length - 3, Sequenced)));
         }
 
         /// <summary>
         ///     Receive
         /// </summary>
-        /// <param name="buffer">Buffer</param>
         /// <param name="length">Length</param>
-        internal void ReceiveUnreliable(byte[] buffer, int length)
+        internal void ReceiveUnreliable(int length)
         {
-            if (_state != Connected)
+            if (_state != Connected || _managedBuffer[0] != _sessionId)
                 return;
-            var conversationId = buffer[0];
-            if (conversationId != _conversationId)
-                return;
-            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(buffer, 1, length - 1, Unreliable)));
+            _host.Insert(new NetworkEvent(NetworkEventType.Data, this, DataPacket.Create(_managedBuffer, 1, length - 1, Unreliable)));
         }
 
         /// <summary>
@@ -265,12 +300,12 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal int SendSequenced(byte* buffer, int length)
         {
-            _managedBuffer[0] = _conversationId;
+            _managedBuffer[0] = _sessionId;
             As<byte, ushort>(ref _managedBuffer[1]) = _lastSendSequence++;
             CopyBlock(ref _managedBuffer[3], ref *buffer, (uint)length);
             length += 4;
             _managedBuffer[length - 1] = (byte)Sequenced;
-            _host.Insert(IPEndPoint, length);
+            _host.Insert(EndPoint, length);
             return length;
         }
 
@@ -281,11 +316,11 @@ namespace asphyxia
         /// <param name="length">Length</param>
         internal int SendUnreliable(byte* buffer, int length)
         {
-            _managedBuffer[0] = _conversationId;
+            _managedBuffer[0] = _sessionId;
             CopyBlock(ref _managedBuffer[1], ref *buffer, (uint)length);
             length += 2;
             _managedBuffer[length - 1] = (byte)Unreliable;
-            _host.Insert(IPEndPoint, length);
+            _host.Insert(EndPoint, length);
             return length;
         }
 
@@ -319,21 +354,21 @@ namespace asphyxia
                 _host.Insert(new NetworkEvent(NetworkEventType.Timeout, this));
             _state = Disconnected;
             _kcp.Dispose();
-            _host.Remove(IPEndPoint.GetHashCode(), this);
+            _host.Remove(_hashCode, this);
         }
 
         /// <summary>
         ///     Try disconnect now
         /// </summary>
-        internal void TryDisconnectNow(byte conversationId)
+        internal void TryDisconnectNow(byte sessionId)
         {
-            if (_conversationId != conversationId || _state == Disconnected)
+            if (_sessionId != sessionId || _state == Disconnected)
                 return;
             if (_state == Connected)
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
             _state = Disconnected;
             _kcp.Dispose();
-            _host.Remove(IPEndPoint.GetHashCode(), this);
+            _host.Remove(_hashCode, this);
         }
 
         /// <summary>
@@ -347,7 +382,7 @@ namespace asphyxia
                 _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
             _state = Disconnected;
             _kcp.Dispose();
-            _host.Remove(IPEndPoint.GetHashCode(), this);
+            _host.Remove(_hashCode, this);
         }
 
         /// <summary>
@@ -360,10 +395,10 @@ namespace asphyxia
             _kcp.Dispose();
             _managedBuffer[0] = (byte)Header.Disconnect;
             _managedBuffer[1] = (byte)DisconnectAcknowledge;
-            _managedBuffer[2] = _conversationId;
+            _managedBuffer[2] = _sessionId;
             _managedBuffer[3] = (byte)Reliable;
-            _host.Insert(IPEndPoint, 4);
-            _host.Remove(IPEndPoint.GetHashCode(), this);
+            _host.Insert(EndPoint, 4);
+            _host.Remove(_hashCode, this);
         }
 
         /// <summary>
@@ -480,7 +515,7 @@ namespace asphyxia
                             goto error;
                         _host.Insert(new NetworkEvent(NetworkEventType.Disconnect, this));
                         _kcp.Dispose();
-                        _host.Remove(IPEndPoint.GetHashCode(), this);
+                        _host.Remove(_hashCode, this);
                         return;
                     default:
                         error:
