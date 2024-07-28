@@ -170,8 +170,6 @@ namespace asphyxia
                 {
                     _socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
                     _socket.DualMode = true;
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                        _socket.IOControl(-1744830452, new byte[1], null);
                     localEndPoint = new IPEndPoint(IPAddress.IPv6Any, port);
                 }
                 else
@@ -191,17 +189,10 @@ namespace asphyxia
                     return SocketError.AddressAlreadyInUse;
                 }
 
-                if (ipv6)
-                {
-                    if (_remoteEndPoint == null || _remoteEndPoint.AddressFamily != AddressFamily.InterNetworkV6)
-                        _remoteEndPoint = new IPEndPoint(IPAddress.IPv6Any, 0);
-                }
-                else
-                {
-                    if (_remoteEndPoint == null || _remoteEndPoint.AddressFamily != AddressFamily.InterNetwork)
-                        _remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
-                }
-
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    _socket.IOControl(-1744830452, new byte[1], null);
+                if (_remoteEndPoint == null || _remoteEndPoint.AddressFamily != _socket.AddressFamily)
+                    _remoteEndPoint = new IPEndPoint(((IPEndPoint)_socket.LocalEndPoint).Address, 0);
                 if (maxPeers <= 0)
                     maxPeers = 1;
                 var socketBufferSize = maxPeers * SOCKET_BUFFER_SIZE;

@@ -139,7 +139,7 @@ namespace asphyxia
                                     var data = Encoding.UTF8.GetBytes($"client: {j}");
                                     fixed (byte* buffer = data)
                                     {
-                                        peer2.Send(DataPacket.Create(buffer, data.Length, PacketFlag.Reliable | PacketFlag.NoAllocate));
+                                        peer2.Send(DataPacket.Create(buffer, data.Length, PacketFlag.Sequenced | PacketFlag.NoAllocate));
                                     }
                                 }
                             }
